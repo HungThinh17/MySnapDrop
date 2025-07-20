@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Snapdrop</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+      background-color: #f8f9fa;
+      color: #343a40;
+      min-height: 100vh;
+    }
+
+    h1 {
+      color: #007bff;
+      margin-bottom: 20px;
+    }
+
+    #dropArea {
+      border: 2px dashed #007bff;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 20px;
+      width: 80%;
+      background-color: #fff;
+      border-radius: 5px;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    #buttonsContainer {
+      display: flex;
+      justify-content: flex-start;
+      margin-bottom: 10px;
+      width: 80%;
+    }
+
+    #selectFilesButton,
+    #uploadButton,
+    #clearFilesButton {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin: 0 10px 10px 0;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease;
+    }
+
+    #selectFilesButton:hover,
+    #uploadButton:hover,
+    #clearFilesButton:hover {
+      background-color: #0056b3;
+    }
+
+    .progressBar {
+      width: 80%;
+      height: 10px;
+      background-color: #eee;
+      margin-bottom: 5px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .progressBar div {
+      height: 10px;
+      background-color: #007bff;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    #fileList {
+      margin-top: 20px;
+      width: 80%;
+    }
+
+    #fileList a {
+      display: block;
+      margin-bottom: 5px;
+      padding: 10px;
+      background-color: #fff;
+      border: 1px solid #ced4da;
+      text-decoration: none;
+      color: #343a40;
+      word-break: break-all;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease;
+    }
+
+    #fileList a:hover {
+      background-color: #f0f0f0;
+    }
+
+    #qrCode {
+      margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+
+      #dropArea,
+      #selectedFiles,
+      #fileList {
+        width: 95%;
+      }
+
+      #selectFilesButton,
+      #uploadButton {
+        margin: 5px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Snapdrop</h1>
+
+  <div id="dropArea">
+    Drag and drop files here or click to select
+    <input type="file" id="fileInput" multiple>
+    <div id="selectedFiles"></div>
+  </div>
+
+  <div id="buttonsContainer">
+    <button id="selectFilesButton">Select Files</button>
+    <button id="uploadButton" disabled>Upload</button>
+    <button id="clearFilesButton">Clear Selected Files</button>
+  </div>
+
+  <h2>Uploaded Files</h2>
+  <div id="fileList"></div>
+
+  <div id="qrCode"></div>
+
+  <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const dropArea = document.getElementById('dropArea');
+      const fileInput = document.getElementById('fileInput');
+      const uploadButton = document.getElementById('uploadButton');
+      const fileList = document.getElementById('fileList');
+      const qrCodeDiv = document.getElementById('qrCode');
+      let uploadProgressBars = {};
+      const selectedFilesDiv = document.getElementById('selectedFiles');
+      const selectFilesButton = document.getElementById('selectFilesButton');
+      const clearFilesButton = document.getElementById('clearFilesButton');
+
+      // Disable upload button by default
+      uploadButton.disabled = true;
+
+      // Enable upload button when files are selected
+      fileInput.addEventListener('change', () => {
+        displaySelectedFiles();
+        if (fileInput.files.length > 0) {
+          uploadButton.disabled = false;
+        } else {
+          uploadButton.disabled = true;
+        }
+      });
+
+      // Clear files button click
+      clearFilesButton.addEventListener('click', () => {
+        fileInput.value = '';
+        displaySelectedFiles();
+        uploadButton.disabled = true;
+      });
+
+      // Select files button click
+      selectFilesButton.addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('click', function(e) {
+        e.stopPropagation();
+      });
+
+      // Drag and drop handling
+      dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.style.backgroundColor = '#eee';
+      });
+
+      dropArea.addEventListener('dragleave', () => {
+        dropArea.style.backgroundColor = '';
+      });
+
+      dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.style.backgroundColor = '';
+        fileInput.files = e.dataTransfer.files;
+        handleFileSelection();
+      });
+
+      fileInput.addEventListener('change', () => {
+        handleFileSelection();
+      });
+
+      function handleFileSelection() {
+        displaySelectedFiles();
+        if (fileInput.files.length > 0) {
+          uploadButton.disabled = false;
+        } else {
+          uploadButton.disabled = true;
+        }
+      }
+
+      uploadButton.addEventListener('click', () => {
+        uploadFiles();
+      });
+
+      function displaySelectedFiles() {
+        let selectedFilesDiv = document.getElementById('selectedFiles');
+        if (!selectedFilesDiv) {
+          selectedFilesDiv = document.createElement('div');
+          selectedFilesDiv.id = 'selectedFiles';
+          dropArea.appendChild(selectedFilesDiv);
+        }
+        selectedFilesDiv.innerHTML = '';
+        const files = fileInput.files;
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          selectedFilesDiv.innerHTML += file.name + '<br>';
+        }
+      }
+
+      function uploadFiles() {
+        const files = fileInput.files;
+        for (let i = 0; i < files.length; i++) {
+          uploadFile(files[i]);
+        }
+      }
+
+      function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload', true);
+
+        // Create progress bar
+        const progressBar = document.createElement('div');
+        progressBar.className = 'progressBar';
+        const progressBarInner = document.createElement('div');
+        progressBar.appendChild(progressBarInner);
+        fileList.appendChild(progressBar);
+        uploadProgressBars[file.name] = progressBarInner;
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = (e.loaded / e.total) * 100;
+            progressBarInner.style.width = progress + '%';
+          }
+        });
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            alert(xhr.responseText);
+            delete uploadProgressBars[file.name];
+            progressBar.remove();
+            updateFileList();
+          } else {
+            alert('Upload failed: ' + xhr.status);
+          }
+        };
+
+        xhr.send(formData);
+      }
+
+      function updateFileList() {
+        fetch('/files')
+          .then(response => response.json())
+          .then(files => {
+            fileList.innerHTML = '';
+            files.forEach(file => {
+              const fileContainer = document.createElement('div');
+              fileContainer.style.display = 'flex';
+              fileContainer.style.alignItems = 'center';
+              fileContainer.style.justifyContent = 'space-between';
+              fileContainer.style.marginBottom = '5px';
+
+              const a = document.createElement('a');
+              a.href = '/download/' + file;
+              a.textContent = file;
+              a.style.flexGrow = '1';
+              a.style.marginRight = '10px';
+              fileContainer.appendChild(a);
+
+              const removeButton = document.createElement('button');
+              removeButton.textContent = 'Remove';
+              removeButton.style.backgroundColor = '#dc3545';
+              removeButton.style.color = 'white';
+              removeButton.style.border = 'none';
+              removeButton.style.borderRadius = '5px';
+              removeButton.style.padding = '5px 10px';
+              removeButton.style.cursor = 'pointer';
+              removeButton.addEventListener('click', () => {
+                deleteFile(file);
+              });
+              fileContainer.appendChild(removeButton);
+
+              fileList.appendChild(fileContainer);
+            });
+          });
+      }
+
+      function deleteFile(filename) {
+        fetch('/files/' + filename, {
+            method: 'DELETE'
+          })
+          .then(response => response.text())
+          .then(message => {
+            alert(message);
+            updateFileList();
+          });
+      }
+
+      // Generate QR code
+      const ipAddress = window.location.hostname;
+      const port = window.location.port;
+      const url = `http://${ipAddress}:${port}`;
+
+      new QRCode(qrCodeDiv, {
+        text: url,
+        width: 128,
+        height: 128,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      updateFileList();
+    });
+  </script>
+</body>
+
+</html>
