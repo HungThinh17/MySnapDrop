@@ -2,13 +2,39 @@ const express = require('express');
 const fileUpload = require('express-fileupload');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const port = 3000;
 
 // Middleware
 app.use(express.static('public'));
-app.use(fileUpload());
+
+// Ensure uploads directory exists on startup
+const uploadsDir = path.join(__dirname, 'uploads');
+const tempDir = path.join(os.tmpdir(), 'snapdrop-uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+} catch (e) {
+  console.error('Failed to initialize uploads directory:', e);
+}
+
+// Configure file upload middleware with safer defaults
+app.use(
+  fileUpload({
+    // Stream to temp files to avoid large memory usage
+    useTempFiles: true,
+    tempFileDir: tempDir,
+    createParentPath: true,
+    safeFileNames: true,
+    preserveExtension: true,
+  })
+);
 
 // Routes
 app.get('/', (req, res) => {
@@ -16,60 +42,88 @@ app.get('/', (req, res) => {
 });
 
 app.post('/upload', (req, res) => {
-  if (!req.files || Object.keys(req.files).length === 0) {
-    return res.status(400).send('No files were uploaded.');
-  }
-
-  const uploadedFile = req.files.file;
-  const uploadPath = __dirname + '/uploads/' + uploadedFile.name;
-
-  uploadedFile.mv(uploadPath, (err) => {
-    if (err) {
-      return res.status(500).send(err);
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return res.status(400).send('No files were uploaded.');
     }
 
-    res.send('File uploaded!');
-  });
+    let uploadedFile = req.files.file;
+    // Handle array case defensively if client ever batches
+    if (Array.isArray(uploadedFile)) {
+      uploadedFile = uploadedFile[0];
+    }
+
+    if (!uploadedFile || !uploadedFile.name) {
+      return res.status(400).send('Invalid upload payload.');
+    }
+
+    // Sanitize filename and avoid path traversal
+    const originalName = path.basename(uploadedFile.name);
+    const safeName = originalName.replace(/[\0<>:"/\\|?*]+/g, '_');
+
+    // Ensure uploads dir still exists
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Avoid overwriting existing files: add timestamp if conflict
+    let targetPath = path.join(uploadsDir, safeName);
+    if (fs.existsSync(targetPath)) {
+      const ext = path.extname(safeName);
+      const base = path.basename(safeName, ext);
+      const uniqueName = `${base}-${Date.now()}${ext}`;
+      targetPath = path.join(uploadsDir, uniqueName);
+    }
+
+    uploadedFile.mv(targetPath, (err) => {
+      if (err) {
+        const message = err?.message || String(err);
+        return res.status(500).send(message);
+      }
+      res.send('File uploaded!');
+    });
+  } catch (e) {
+    return res.status(500).send('Unexpected server error.');
+  }
 });
 
 app.get('/files', (req, res) => {
-  const fs = require('fs');
-  const uploadsPath = path.join(__dirname, 'uploads');
-
-  if (!fs.existsSync(uploadsPath)) {
-    return res.status(500).send('Uploads directory does not exist.');
-  }
-
-  fs.readdir(uploadsPath, (err, files) => {
-    if (err) {
-      return res.status(500).send('Failed to read uploads directory.');
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      return res.json([]);
     }
-
-    res.json(files);
-  });
+    fs.readdir(uploadsDir, (err, files) => {
+      if (err) {
+        return res.status(500).send('Failed to read uploads directory.');
+      }
+      // Return only regular files
+      return res.json(files.filter(Boolean));
+    });
+  } catch (e) {
+    return res.status(500).send('Failed to list files.');
+  }
 });
 
 app.get('/download/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(__dirname, 'uploads', filename);
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(uploadsDir, filename);
 
-  const fs = require('fs');
   if (!fs.existsSync(filePath)) {
     return res.status(404).send('File not found');
   }
 
   res.download(filePath, filename, (err) => {
     if (err) {
-      return res.status(500).send(err);
+      return res.status(500).send('Failed to download file');
     }
   });
 });
 
 app.delete('/files/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(__dirname, 'uploads', filename);
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(uploadsDir, filename);
 
-  const fs = require('fs');
   if (!fs.existsSync(filePath)) {
     return res.status(404).send('File not found');
   }

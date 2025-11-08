@@ -1,0 +1,48 @@
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  res.download(filePath, filename, (err) => {
+    if (err) {
+      return res.status(500).send('Failed to download file');
+    }
+  });
+});
+
+app.delete('/files/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(uploadsDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      return res.status(500).send('Failed to delete file');
+    }
+    res.send('File deleted');
+  });
+});
+
+// Get local IP address
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (let interface in interfaces) {
+    const addresses = interfaces[interface];
+    for (let i = 0; i < addresses.length; i++) {
+      const address = addresses[i];
+      if (address.family === 'IPv4' && !address.internal) {
+        return address.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+  console.log(`Access the app at http://${getLocalIP()}:${port}`);
+});

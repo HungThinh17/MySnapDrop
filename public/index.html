@@ -153,6 +153,8 @@
       const fileList = document.getElementById('fileList');
       const qrCodeDiv = document.getElementById('qrCode');
       let uploadProgressBars = {};
+      const MAX_RETRIES = 3;
+      const BASE_DELAY_MS = 1000;
       const selectedFilesDiv = document.getElementById('selectedFiles');
       const selectFilesButton = document.getElementById('selectFilesButton');
       const clearFilesButton = document.getElementById('clearFilesButton');
@@ -238,24 +240,31 @@
       function uploadFiles() {
         const files = fileInput.files;
         for (let i = 0; i < files.length; i++) {
-          uploadFile(files[i]);
+          uploadFileWithRetry(files[i]);
         }
       }
 
-      function uploadFile(file) {
+      function uploadFileWithRetry(file, attempt = 1) {
         const formData = new FormData();
         formData.append('file', file);
 
+        // Create progress bar once per file
+        let progressBarInner = uploadProgressBars[file.name];
+        let progressBar;
+        if (!progressBarInner) {
+          progressBar = document.createElement('div');
+          progressBar.className = 'progressBar';
+          progressBarInner = document.createElement('div');
+          progressBar.appendChild(progressBarInner);
+          fileList.appendChild(progressBar);
+          uploadProgressBars[file.name] = progressBarInner;
+        } else {
+          // Reset width when retrying
+          progressBarInner.style.width = '0%';
+        }
+
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/upload', true);
-
-        // Create progress bar
-        const progressBar = document.createElement('div');
-        progressBar.className = 'progressBar';
-        const progressBarInner = document.createElement('div');
-        progressBar.appendChild(progressBarInner);
-        fileList.appendChild(progressBar);
-        uploadProgressBars[file.name] = progressBarInner;
 
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -264,16 +273,42 @@
           }
         });
 
+        const finalizeSuccess = () => {
+          alert('File uploaded!');
+          delete uploadProgressBars[file.name];
+          if (progressBarInner && progressBarInner.parentElement) {
+            progressBarInner.parentElement.remove();
+          }
+          updateFileList();
+        };
+
+        const shouldRetry = (status) => {
+          // Retry on network failure (0) and 5xx
+          return status === 0 || (status >= 500 && status < 600);
+        };
+
         xhr.onload = () => {
           if (xhr.status === 200) {
-            alert(xhr.responseText);
-            delete uploadProgressBars[file.name];
-            progressBar.remove();
-            updateFileList();
+            finalizeSuccess();
+          } else if (shouldRetry(xhr.status) && attempt < MAX_RETRIES) {
+            const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+            setTimeout(() => uploadFileWithRetry(file, attempt + 1), delay);
           } else {
-            alert('Upload failed: ' + xhr.status);
+            const reason = xhr.responseText ? ' - ' + xhr.responseText : '';
+            alert('Upload failed: ' + xhr.status + reason);
           }
         };
+
+        xhr.onerror = () => {
+          if (attempt < MAX_RETRIES) {
+            const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+            setTimeout(() => uploadFileWithRetry(file, attempt + 1), delay);
+          } else {
+            alert('Upload failed: network error');
+          }
+        };
+
+        xhr.onabort = xhr.onerror;
 
         xhr.send(formData);
       }
