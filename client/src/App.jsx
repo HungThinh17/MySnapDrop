@@ -12,6 +12,7 @@ export function App() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({});
   const [notifications, setNotifications] = useState([]);
+  const [confirmClearAllOpen, setConfirmClearAllOpen] = useState(false);
 
   const canUpload = selectedFiles.length > 0;
 
@@ -218,22 +219,18 @@ export function App() {
     }
   };
 
-  const handleClearAllUploaded = async () => {
+  const handleClearAllUploaded = () => {
     if (!uploadedFiles || uploadedFiles.length === 0) {
       showNotification("info", "No uploaded files to clear.");
       return;
     }
+    setConfirmClearAllOpen(true);
+  };
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete all uploaded files?"
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    // Try bulk clear endpoint first (DELETE /files). If that fails or is not
-    // available, fall back to deleting files one by one.
+  const performClearAllUploaded = async () => {
     try {
+      // Try bulk clear endpoint first (DELETE /files). If that fails or is not
+      // available, fall back to deleting files one by one.
       const bulkResponse = await fetch("/files", {
         method: "DELETE"
       });
@@ -246,6 +243,7 @@ export function App() {
         );
         setUploadedFiles([]);
         fetchFiles();
+        setConfirmClearAllOpen(false);
         return;
       }
 
@@ -255,6 +253,7 @@ export function App() {
           "error",
           bulkMessage || "Failed to clear uploaded files."
         );
+        setConfirmClearAllOpen(false);
         return;
       }
     } catch (error) {
@@ -298,6 +297,8 @@ export function App() {
     } catch (error) {
       console.error(error);
       showNotification("error", "Failed to clear uploaded files.");
+    } finally {
+      setConfirmClearAllOpen(false);
     }
   };
 
@@ -316,6 +317,45 @@ export function App() {
           </div>
         ))}
       </div>
+      {confirmClearAllOpen && (
+        <div
+          className="confirm-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setConfirmClearAllOpen(false);
+            }
+          }}
+        >
+          <div
+            className="confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="confirm-modal-title">
+              Clear all uploaded files?
+            </h3>
+            <p className="confirm-modal-text">
+              This will permanently remove all files currently stored on the
+              server. This action cannot be undone.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmClearAllOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={performClearAllUploaded}
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="app-header">
         <h1>MySnapDrop</h1>
         <p>Local file sharing over your network.</p>
@@ -340,9 +380,15 @@ export function App() {
             onDelete={handleDeleteFile}
             onClearAll={handleClearAllUploaded}
           />
-          <QrSection />
         </section>
       </main>
+      <footer className="app-footer">
+        <QrSection />
+        <p className="app-author">
+          Author: <span>hungti17</span> -{" "}
+          <a href="mailto:nphung75@gmail.com">nphung75@gmail.com</a>
+        </p>
+      </footer>
     </div>
   );
 }

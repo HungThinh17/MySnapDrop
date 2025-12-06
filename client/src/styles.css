@@ -27,6 +27,7 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 body {
@@ -48,6 +49,8 @@ body {
   padding: 16px;
   max-width: 960px;
   margin: 0 auto;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .app-header {
@@ -109,6 +112,8 @@ body {
 .selected-files {
   margin-top: 12px;
   text-align: left;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .selected-files-empty {
@@ -119,7 +124,9 @@ body {
 .selected-file-item {
   font-size: 0.95rem;
   padding: 4px 0;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-controls {
@@ -212,17 +219,22 @@ body {
   justify-content: space-between;
   margin-bottom: 8px;
   gap: 8px;
+  min-width: 0;
 }
 
 .uploaded-file-link {
   flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 8px 10px;
   background-color: var(--color-surface);
   border-radius: 6px;
   border: 1px solid var(--color-border-strong);
   text-decoration: none;
   color: var(--color-text);
-  word-break: break-all;
   transition: background-color 0.2s ease;
 }
 
@@ -234,6 +246,36 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.icon-button {
+  padding-inline: 10px;
+  min-width: auto;
+}
+
+.icon-trash {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.file-name {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name-main {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name-ext {
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .progressBar {
@@ -258,11 +300,115 @@ body {
 .qr-description {
   font-size: 0.9rem;
   color: var(--color-text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 .qr-code {
   display: inline-block;
+}
+
+.qr-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.qr-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-soft);
+  width: min(320px, 90vw);
+  text-align: center;
+  border: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-modal-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.qr-code--modal {
+  margin: 8px auto 4px;
+}
+
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1150;
+}
+
+.confirm-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 18px 20px 16px;
+  box-shadow: var(--shadow-soft);
+  width: min(360px, 90vw);
+  text-align: center;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.confirm-modal-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.confirm-modal-text {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.confirm-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.app-footer {
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+
+.app-author {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.app-author a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .toast-container {
@@ -278,7 +424,7 @@ body {
 
 .toast {
   min-width: 220px;
-  max-width: 320px;
+  max-width: 90vw;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   font-size: 0.9rem;

@@ -43,7 +43,9 @@ export function DropZone({ selectedFiles, onFilesSelected }) {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <p>Drag and drop files here or click to select</p>
+        {selectedFiles.length === 0 && (
+          <p>Drag and drop files here or click to select</p>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -55,15 +57,34 @@ export function DropZone({ selectedFiles, onFilesSelected }) {
           {selectedFiles.length === 0 ? (
             <span className="selected-files-empty">No files selected</span>
           ) : (
-            selectedFiles.map((file) => (
-              <div key={file.name} className="selected-file-item">
-                {file.name}
-              </div>
-            ))
+            selectedFiles.map((file) => {
+              const fullName = file.name || "";
+              const lastDotIndex = fullName.lastIndexOf(".");
+              const base =
+                lastDotIndex > 0 ? fullName.slice(0, lastDotIndex) : fullName;
+              const ext =
+                lastDotIndex > 0 ? fullName.slice(lastDotIndex + 1) : "";
+
+              const MAX_BASE_LEN = 24;
+              const truncatedBase =
+                base.length > MAX_BASE_LEN
+                  ? base.slice(0, MAX_BASE_LEN - 1) + "…"
+                  : base;
+
+              const key = `${fullName}-${file.size}-${file.lastModified}`;
+
+              return (
+                <div key={key} className="selected-file-item">
+                  <span className="file-name" title={fullName}>
+                    <span className="file-name-main">{truncatedBase}</span>
+                    {ext && <span className="file-name-ext">.{ext}</span>}
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
       </div>
     </div>
   );
 }
-
