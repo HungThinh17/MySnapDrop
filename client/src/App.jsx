@@ -14,13 +14,41 @@ export function App() {
   const [notifications, setNotifications] = useState([]);
   const [confirmClearAllOpen, setConfirmClearAllOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [theme, setTheme] = useState("light");
+  const [serverOnline, setServerOnline] = useState(true);
 
-  const canUpload = selectedFiles.length > 0;
+  const canUpload = selectedFiles.length > 0 && serverOnline;
 
   const uploadingFiles = useMemo(
     () => Object.keys(uploadProgress),
     [uploadProgress]
   );
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("theme-dark", theme === "dark");
+    }
+  }, [theme]);
+
+  const selectionSummary = useMemo(() => {
+    if (!selectedFiles.length) return "";
+    const totalBytes = selectedFiles.reduce(
+      (sum, file) => sum + (file.size || 0),
+      0
+    );
+    const units = ["B", "KB", "MB", "GB"];
+    let size = totalBytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    const formattedSize =
+      size < 10 && unitIndex > 0 ? size.toFixed(1) : Math.round(size);
+    const unit = units[unitIndex];
+    const count = selectedFiles.length;
+    return `${count} file${count > 1 ? "s" : ""} · ${formattedSize} ${unit}`;
+  }, [selectedFiles]);
 
   const showNotification = useCallback((type, message) => {
     const id = Date.now() + Math.random();
@@ -33,14 +61,48 @@ export function App() {
 
   const fetchFiles = useCallback(async () => {
     try {
-      const response = await fetch("/files");
-      if (!response.ok) {
-        throw new Error("Failed to fetch files");
+      // Prefer richer metadata endpoint; fall back to the original /files if
+      // meta is not available (e.g., older server).
+      let meta;
+      let metaOk = false;
+
+      try {
+        const metaResponse = await fetch("/files/meta");
+        if (metaResponse.ok) {
+          const payload = await metaResponse.json();
+          if (Array.isArray(payload)) {
+            meta = payload
+              .filter((item) => item && typeof item.name === "string")
+              .map((item) => ({
+                name: item.name,
+                size: typeof item.size === "number" ? item.size : 0,
+                mtimeMs: typeof item.mtimeMs === "number" ? item.mtimeMs : 0
+              }));
+            metaOk = true;
+          }
+        }
+      } catch {
+        // Ignore and fall back below.
       }
-      const files = await response.json();
-      setUploadedFiles(files || []);
+
+      if (!metaOk) {
+        const response = await fetch("/files");
+        if (!response.ok) {
+          throw new Error("Failed to fetch files");
+        }
+        const names = await response.json();
+        meta = Array.isArray(names)
+          ? names
+              .filter((name) => typeof name === "string")
+              .map((name) => ({ name, size: 0, mtimeMs: 0 }))
+          : [];
+      }
+
+      setUploadedFiles(meta || []);
+      setServerOnline(true);
     } catch (error) {
       console.error(error);
+      setServerOnline(false);
       showNotification("error", "Failed to fetch files.");
     }
   }, [showNotification]);
@@ -153,6 +215,14 @@ export function App() {
   };
 
   const handleUpload = () => {
+    if (!serverOnline) {
+      showNotification(
+        "error",
+        "Server appears to be offline. Please start the backend and try again."
+      );
+      return;
+    }
+
     if (selectedFiles.length === 0) {
       showNotification("info", "No files selected to upload.");
       return;
@@ -162,7 +232,7 @@ export function App() {
     let skipped = [];
 
     if (uploadedFiles && uploadedFiles.length > 0) {
-      const existingNames = new Set(uploadedFiles);
+      const existingNames = new Set(uploadedFiles.map((f) => f.name));
       toUpload = [];
 
       selectedFiles.forEach((file) => {
@@ -203,6 +273,14 @@ export function App() {
   };
 
   const handleDeleteFile = async (filename) => {
+    if (!serverOnline) {
+      showNotification(
+        "error",
+        "Cannot delete files while the server is offline."
+      );
+      return;
+    }
+
     try {
       const response = await fetch(`/files/${encodeURIComponent(filename)}`, {
         method: "DELETE"
@@ -223,6 +301,13 @@ export function App() {
   const handleClearAllUploaded = () => {
     if (!uploadedFiles || uploadedFiles.length === 0) {
       showNotification("info", "No uploaded files to clear.");
+      return;
+    }
+    if (!serverOnline) {
+      showNotification(
+        "error",
+        "Cannot clear uploaded files while the server is offline."
+      );
       return;
     }
     setConfirmClearAllOpen(true);
@@ -266,7 +351,7 @@ export function App() {
     try {
       let successCount = 0;
       let failureCount = 0;
-      const filesToDelete = [...uploadedFiles];
+      const filesToDelete = uploadedFiles.map((f) => f.name);
 
       for (const filename of filesToDelete) {
         try {
@@ -396,8 +481,22 @@ export function App() {
             <p>Local file sharing over your network.</p>
           </div>
           <div className="app-status">
-            <span className="status-dot" aria-hidden="true"></span>
-            <span className="status-text">Online</span>
+            <span
+              className={`status-dot${
+                serverOnline ? "" : " status-dot--offline"
+              }`}
+              aria-label={serverOnline ? "Server online" : "Server offline"}
+            ></span>
+            <span className="status-separator">·</span>
+            <button
+              type="button"
+              className="link-button"
+              onClick={() =>
+                setTheme((prev) => (prev === "light" ? "dark" : "light"))
+              }
+            >
+              {theme === "light" ? "Dark mode" : "Light mode"}
+            </button>
           </div>
         </div>
       </header>
@@ -412,6 +511,15 @@ export function App() {
             onUpload={handleUpload}
             onClear={handleClearSelection}
           />
+          {selectionSummary && (
+            <p className="selection-summary">{selectionSummary}</p>
+          )}
+          {!serverOnline && (
+            <p className="server-offline-hint">
+              Server is offline. Start the backend and reload this page before
+              uploading or managing files.
+            </p>
+          )}
         </section>
         <section className="files-area">
           <UploadedFilesList

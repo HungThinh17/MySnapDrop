@@ -105,6 +105,43 @@ app.get('/files', (req, res) => {
   }
 });
 
+app.get('/files/meta', (req, res) => {
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      return res.json([]);
+    }
+
+    fs.readdir(uploadsDir, (err, files) => {
+      if (err) {
+        return res.status(500).send('Failed to read uploads directory.');
+      }
+
+      const entries = [];
+      for (const name of files.filter(Boolean)) {
+        try {
+          const fullPath = path.join(uploadsDir, name);
+          const stat = fs.statSync(fullPath);
+          if (stat.isFile()) {
+            entries.push({
+              name,
+              size: stat.size,
+              mtimeMs: stat.mtimeMs
+            });
+          }
+        } catch (e) {
+          // Skip problematic entries but do not fail the entire response.
+          continue;
+        }
+      }
+
+      return res.json(entries);
+    });
+  } catch (e) {
+    return res.status(500).send('Failed to list files.');
+  }
+});
+
 app.get('/download/:filename', (req, res) => {
   const filename = path.basename(req.params.filename);
   const filePath = path.join(uploadsDir, filename);

@@ -1,5 +1,19 @@
 import React from "react";
 
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const formatted =
+    size < 10 && unitIndex > 0 ? size.toFixed(1) : Math.round(size);
+  return `${formatted} ${units[unitIndex]}`;
+}
+
 export function UploadedFilesList({
   files,
   onDelete,
@@ -14,7 +28,7 @@ export function UploadedFilesList({
         <p className="uploaded-files-empty">No files have been uploaded yet.</p>
       )}
       {files.map((file) => {
-        const fullName = file || "";
+        const fullName = file?.name || "";
         const lastDotIndex = fullName.lastIndexOf(".");
         const base =
           lastDotIndex > 0 ? fullName.slice(0, lastDotIndex) : fullName;
@@ -27,16 +41,32 @@ export function UploadedFilesList({
             ? base.slice(0, MAX_BASE_LEN - 1) + "…"
             : base;
 
+        const extLower = ext.toLowerCase();
+        let kind = "file";
+        if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif"].includes(extLower)) {
+          kind = "image";
+        } else if (["mp4", "mov", "avi", "mkv", "webm"].includes(extLower)) {
+          kind = "video";
+        } else if (["mp3", "wav", "flac", "aac", "ogg", "m4a"].includes(extLower)) {
+          kind = "audio";
+        } else if (["zip", "rar", "7z", "tar", "gz", "bz2"].includes(extLower)) {
+          kind = "archive";
+        } else if (["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md"].includes(extLower)) {
+          kind = "doc";
+        }
+
+        const size = typeof file.size === "number" ? file.size : 0;
+
         return (
-          <div key={file} className="uploaded-file-row">
+          <div key={fullName} className="uploaded-file-row">
             <a
-              href={`/download/${encodeURIComponent(file)}`}
+              href={`/download/${encodeURIComponent(fullName)}`}
               className="uploaded-file-link"
-              title={file}
+              title={fullName}
             >
               <span className="file-type-icon-wrapper" aria-hidden="true">
                 <svg
-                  className="file-type-icon"
+                  className={`file-type-icon file-type-icon--${kind}`}
                   viewBox="0 0 24 24"
                 >
                   <path
@@ -66,18 +96,23 @@ export function UploadedFilesList({
               </span>
             </a>
             <div className="uploaded-file-actions">
-              {uploadingFiles.includes(file) && (
+              {uploadingFiles.includes(fullName) && (
                 <div className="progressBar">
                   <div
-                    style={{ width: `${uploadProgress[file] || 0}%` }}
+                    style={{ width: `${uploadProgress[fullName] || 0}%` }}
                   ></div>
                 </div>
+              )}
+              {size > 0 && (
+                <span className="uploaded-file-size">
+                  {formatFileSize(size)}
+                </span>
               )}
               <button
                 type="button"
                 className="btn btn-danger icon-button"
-                aria-label={`Remove ${file}`}
-                onClick={() => onDelete(file)}
+                aria-label={`Remove ${fullName}`}
+                onClick={() => onDelete(fullName)}
               >
                 <svg
                   className="icon-trash"

@@ -99,8 +99,17 @@ body {
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
 }
 
+.status-dot--offline {
+  background-color: var(--color-danger);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18);
+}
+
 .status-text {
   letter-spacing: 0.03em;
+}
+
+.status-separator {
+  margin: 0 4px;
 }
 
 .app-main {
@@ -171,6 +180,18 @@ body {
   gap: 8px;
   margin-top: 16px;
   flex-direction: column;
+}
+
+.selection-summary {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.server-offline-hint {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--color-danger);
 }
 
 .btn {
@@ -350,6 +371,32 @@ body {
   height: 18px;
   display: block;
   color: var(--color-primary);
+}
+
+.file-type-icon--image {
+  color: var(--color-primary);
+}
+
+.file-type-icon--video {
+  color: var(--color-success);
+}
+
+.file-type-icon--audio {
+  color: var(--color-warning);
+}
+
+.file-type-icon--archive {
+  color: var(--color-danger-dark);
+}
+
+.file-type-icon--doc,
+.file-type-icon--file {
+  color: var(--color-text-muted);
+}
+
+.uploaded-file-size {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 .progressBar {
@@ -561,6 +608,17 @@ body {
 
 .toast--warning {
   background-color: var(--color-warning);
+}
+
+/* Dark theme overrides */
+body.theme-dark {
+  --color-bg: #020617;
+  --color-surface: #020617;
+  --color-border-subtle: #1f2937;
+  --color-border-strong: #374151;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  background: radial-gradient(circle at top, #0f172a 0, #020617 55%);
 }
 
 /* Tablet layout: widen padding and arrange buttons horizontally */
