@@ -1,37 +1,37 @@
-# MySnapDrop – Current Architecture (2025-12-06)
+﻿# MySnapDrop – Current Architecture
 
-This document describes the current structure and responsibilities of the project so we can track changes over time.
+This document describes the current structure and behavior of the project so we can track changes over time.
 
 ## 1. High-Level Overview
 
 - **Goal**: Simple local-network file sharing, similar to Snapdrop.
-- **Backend**: Node.js + Express (file uploads, listing, download, delete).
+- **Backend**: Node.js + Express (file uploads, listing, download, delete, clear-all).
 - **Frontend**:
-  - Legacy static HTML/JS UI served from `server/public/index.html` (still present).
-  - New React frontend in `client/` (used during development via Vite, talking to the same backend API).
+  - Legacy static HTML/JS UI served from `server/public/index.html` (kept as a fallback/reference).
+  - React SPA in `client/` used during development via Vite, talking to the Express API.
 - **Dev tooling**: `mysnapdrop.sh` top-level script to start/stop server and client.
 
 ## 2. Repository Layout
 
 - `server/`
-  - `index.js`: Express server implementation.
+  - `index.js`: Express server implementation and routes.
   - `package.json`, `package-lock.json`, `node_modules/`: server dependencies (`express`, `express-fileupload`, etc.).
   - `public/index.html`: legacy browser-only UI, still functional.
   - `uploads/`: uploaded files storage (ignored by Git).
 - `client/`
   - `package.json`, `package-lock.json`, `node_modules/`: React/Vite dependencies.
   - `vite.config.mts`: Vite config (React plugin, dev server, API proxy).
-  - `index.html`: Vite entry HTML for the React app (includes QRCode script).
-  - `src/main.jsx`: React bootstrapping (renders `<App />` into `#root`).
-  - `src/App.jsx`: main React app component with upload logic.
+  - `index.html`: Vite entry HTML for the React app (includes QRCode script and locked viewport meta).
+  - `src/main.jsx`: React bootstrapping (renders `<App />` into `#root` and applies extra touch/zoom handlers).
+  - `src/App.jsx`: main React app component with upload logic, notifications, and dialogs.
   - `src/components/DropZone.jsx`: drag-and-drop + click-to-select file input and selected files preview.
   - `src/components/FileControls.jsx`: Upload / Clear Selected Files controls.
-  - `src/components/UploadedFilesList.jsx`: list of uploaded files with download + remove actions.
-  - `src/components/QrSection.jsx`: QR code area using the globally injected QRCode library.
-  - `src/styles.css`: global styling for the React app.
+  - `src/components/UploadedFilesList.jsx`: uploaded files list with per-file delete, clear-all action, and progress bars.
+  - `src/components/QrSection.jsx`: QR code trigger and modal using the globally injected QRCode library.
+  - `src/styles.css`: global styling, layout, and responsive behavior.
 - Root
   - `mysnapdrop.sh`: helper script to manage server/client processes.
-  - `IMPROVEMENT_PLAN.md`: planned React migration + UI/UX improvements.
+  - `IMPROVEMENT_PLAN.md`: planned and partially completed UI/UX improvements.
   - `WORKFLOW.md`: collaboration and review workflow.
   - `ARCHITECTURE.md`: this document.
   - `.gitignore`: ignores `node_modules`, `uploads`, `server/uploads`, and PID files.
@@ -43,12 +43,12 @@ This document describes the current structure and responsibilities of the projec
 
 - **Port**: `3000`.
 - **Static assets**:
-  - `publicDir = path.join(__dirname, 'public')`.
+  - `publicDir = path.join(__dirname, "public")`.
   - `app.use(express.static(publicDir))`.
 - **Uploads**:
-  - Directory: `uploadsDir = path.join(__dirname, 'uploads')`.
+  - Directory: `uploadsDir = path.join(__dirname, "uploads")`.
   - Created on startup if missing.
-  - Also creates a temp directory: `os.tmpdir() + 'snapdrop-uploads'` for `express-fileupload` temp files.
+  - Also creates a temp directory: `os.tmpdir() + "snapdrop-uploads"` for `express-fileupload` temp files.
 - **File upload middleware**:
   - `useTempFiles: true`, `tempFileDir: tempDir`.
   - `safeFileNames: true`, `preserveExtension: true`.
@@ -60,13 +60,24 @@ This document describes the current structure and responsibilities of the projec
     - Expects `req.files.file`.
     - Handles both single file and array form.
     - Sanitizes filename and prevents path traversal.
-    - Avoids overwrite by adding timestamp if needed.
+    - Avoids overwriting by adding a timestamp if the sanitized name already exists.
   - `GET /files`
     - Returns JSON array of filenames stored in `uploads/`.
   - `GET /download/:filename`
     - Downloads a specific file from `uploads/`.
+    - Defensive callback:
+      - If an error occurs after headers are sent (e.g., client aborts), logs the error instead of sending a second response (avoids `ERR_HTTP_HEADERS_SENT`).
+      - Treats aborted connections (`ECONNABORTED`, `ECONNRESET`) as non-fatal.
   - `DELETE /files/:filename`
-    - Deletes a specific file from `uploads/`.
+    - Deletes a specific file from `uploads/` if it exists.
+    - Returns `404` if the file is missing.
+  - `DELETE /files`
+    - Bulk clear endpoint.
+    - Iterates all entries in `uploads/`, deleting regular files.
+    - Returns a plain-text message:
+      - `Deleted N uploaded file(s).` or
+      - `No uploaded files to clear.`.
+    - On failure, returns `500` with `Failed to clear all uploaded files.`.
 - **Local network access log**:
   - On startup prints `http://<local-ip>:3000` where `<local-ip>` is inferred from `os.networkInterfaces()`.
 
@@ -87,82 +98,185 @@ This document describes the current structure and responsibilities of the projec
 
 - Uses `@vitejs/plugin-react`.
 - Dev server:
-  - `host: "0.0.0.0"` → accessible from other devices on the LAN.
+  - `host: "0.0.0.0"` – accessible from other devices on the LAN.
   - `port: 5173`.
 - Proxy:
   - `/upload`, `/files`, `/download` → `http://localhost:3000`.
-  - This lets the React frontend call the same Express API without CORS issues in dev.
+  - Lets the React frontend call the Express API without CORS issues in dev.
 
-### 4.2 React App Structure
+### 4.2 React Entry (`client/src/main.jsx`)
 
-- `index.html`
-  - Basic HTML shell with `<div id="root">`.
-  - Includes QRCode library via `<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js">`.
-- `src/main.jsx`
-  - Renders `<App />` inside `#root` using `ReactDOM.createRoot`.
-- `src/App.jsx`
-  - Manages:
-    - `selectedFiles` (files chosen for upload).
-    - `uploadedFiles` (files fetched from `/files`).
-    - `uploadProgress` (per-file progress values during upload).
-  - Side effects:
-    - On mount, fetches `/files` to populate `uploadedFiles`.
-  - Upload logic:
-    - Uses `XMLHttpRequest` to `POST /upload` (matching legacy behavior).
-    - Tracks progress and simple retry strategy:
-      - Retries on status `0` (network) or 5xx, up to 3 attempts with exponential backoff.
-    - On success, shows an `alert` and refreshes file list.
-  - Delete logic:
-    - `fetch` `DELETE /files/:filename`, shows `alert`, then refreshes list.
-  - Renders:
-    - `<DropZone />` with current selection.
-    - `<FileControls />` (Upload + Clear).
-    - `<UploadedFilesList />` with current `uploadedFiles` + progress.
-    - `<QrSection />` (QR pointing to current host/port).
+- Renders `<App />` inside `#root` using `ReactDOM.createRoot` and `React.StrictMode`.
+- Imports global styles from `styles.css`.
+- Adds best-effort zoom-prevention handlers (in addition to viewport meta):
+  - Intercepts `gesturestart` to prevent pinch-zoom where supported.
+  - Intercepts rapid `touchend` events to mitigate double-tap zoom.
+  - Note: modern mobile browsers may still allow zoom for accessibility; this is a best-effort layer.
 
-### 4.3 Components
+### 4.3 App Component (`client/src/App.jsx`)
 
-- `DropZone.jsx`
-  - Drag & drop area for files.
-  - Hidden `<input type="file" multiple>` triggered on click.
-  - Calls `onFilesSelected(files[])` when user selects/drops files.
-  - Displays list of selected file names.
-- `FileControls.jsx`
-  - `Upload` button:
-    - Disabled when no files selected.
-    - Calls `onUpload()` when clicked.
-  - `Clear Selected Files` button:
-    - Calls `onClear()` to empty `selectedFiles`.
-- `UploadedFilesList.jsx`
+Manages application state and wires components to the backend API.
+
+- **State**:
+  - `selectedFiles`: files chosen for upload.
+  - `uploadedFiles`: filenames currently on the server.
+  - `uploadProgress`: per-file upload progress percentages.
+  - `notifications`: single active toast notification (success, error, info, warning).
+  - `confirmClearAllOpen`: whether the “clear all uploaded files” confirmation dialog is open.
+- **Notifications**:
+  - `showNotification(type, message)`:
+    - Replaces any existing toast with a new one (no stacking).
+    - Auto-dismisses after ~3.5 seconds.
+  - Toasts are rendered in a bottom-center `.toast-container`.
+- **API integration**:
+  - `fetchFiles()`:
+    - `GET /files`, populates `uploadedFiles`.
+    - On failure shows an error toast.
+  - `uploadFileWithRetry(file)`:
+    - Uses `XMLHttpRequest` to `POST /upload`.
+    - Tracks upload progress via `xhr.upload.onprogress` → updates `uploadProgress[file.name]`.
+    - Retries on status `0` or 5xx with exponential backoff (up to 3 attempts).
+    - On success:
+      - Shows success toast per file.
+      - Clears progress entry and refreshes the list via `fetchFiles()`.
+    - On final failure:
+      - Shows error toast and clears progress entry.
+  - `handleDeleteFile(filename)`:
+    - `DELETE /files/:filename`.
+    - Shows success or error toast based on response text and status.
+    - Refreshes `uploadedFiles` via `fetchFiles()`.
+  - `performClearAllUploaded()`:
+    - First attempts bulk `DELETE /files`:
+      - On success, shows success toast, clears `uploadedFiles`, and refetches.
+      - On non-404 error, shows error toast.
+    - If bulk is unavailable / 404 or bulk request fails:
+      - Falls back to deleting each file via `DELETE /files/:filename` in a loop.
+      - Summarizes results with success/warning/error toast.
+    - Closes the confirmation dialog afterwards.
+- **Selection & upload rules**:
+  - `handleFilesSelected(files)`:
+    - Merges new files into `selectedFiles` while avoiding exact duplicates in the current selection (same name + size).
+    - For duplicates, increments a skipped count and shows an info toast like `X duplicate file(s) were skipped.`.
+  - `handleUpload()`:
+    - If no selected files, shows info toast.
+    - Compares `selectedFiles` against `uploadedFiles`:
+      - Files whose name already exists on the server are skipped.
+      - Shows a warning toast indicating how many will be skipped (with a short preview of names).
+    - If no new files remain, shows info toast and returns.
+    - Uploads only new files via `uploadFileWithRetry`.
+    - Clears `selectedFiles` after starting uploads.
+- **Rendering**:
+  - Top-level layout:
+    - Header with app title and subtitle.
+    - Main grid with:
+      - Transfer area: `DropZone` + `FileControls`.
+      - Files area: `UploadedFilesList`.
+    - Footer:
+      - `QrSection` (QR trigger and modal).
+      - Author line: `Author: hungti17 - nphung75@gmail.com`.
+  - Dialogs:
+    - QR modal (for scanning on another device).
+    - Clear-all confirmation modal (before bulk deletion).
+
+### 4.4 Components
+
+- **`DropZone.jsx`**
+  - Drag & drop area plus a hidden `<input type="file" multiple>` triggered on click.
+  - Instruction text “Drag and drop files here or click to select” only shows when there are no selected files.
+  - Calls `onFilesSelected(files[])` when files are selected or dropped.
+  - Displays selected files:
+    - Splits each filename into base name + extension.
+    - Truncates the base name in JS to a maximum length with `…` (e.g., `very-long-name… .txt`).
+    - Shows the full name in the `title` tooltip.
+
+- **`FileControls.jsx`**
+  - Buttons below the drop zone:
+    - `Upload` (primary):
+      - Disabled when `selectedFiles` is empty.
+      - Calls `onUpload()`.
+    - `Clear Selected Files` (secondary):
+      - Always visible; clears current selection via `onClear()`.
+
+- **`UploadedFilesList.jsx`**
   - Shows current `files` (from `/files`) as rows.
   - Each row:
-    - Download link to `/download/<filename>`.
-    - Remove button → `onDelete(filename)`.
+    - A download link to `/download/<filename>`.
+    - The filename rendered with the same base/ext truncation logic as selected files.
+    - A trash icon button (no text) to remove the file:
+      - Calls `onDelete(filename)`.
     - Optional progress bar when file is in `uploadingFiles`.
-- `QrSection.jsx`
-  - On mount:
-    - Uses `window.location.hostname` and `window.location.port` to build the URL.
-    - Creates a QR code using the globally available `window.QRCode`.
-  - Purpose:
-    - Let another device on the same network open the same URL quickly.
+  - Footer inside the section:
+    - `Clear all uploaded files` button (secondary):
+      - Always visible but disabled when there are no uploaded files.
+      - Calls `onClearAll()` (which opens the confirmation dialog).
 
-### 4.4 Styling (`src/styles.css`)
+- **`QrSection.jsx`**
+  - Renders a footer line: `Open on another device — Click here`.
+  - Clicking “Click here”:
+    - Opens a modal overlay.
+    - Generates a QR code for the current host/port using the global `window.QRCode` from the script in `index.html`.
+  - QR modal:
+    - Centered card with title “Scan to open”, the QR code, and a Close button.
+    - Clicking outside the card also closes it.
 
-- Defines base layout:
-  - `.app-root`: full-height flex column.
-  - `.app-main`: responsive grid (1 column on small screens, 2 columns from `min-width: 768px`).
-  - Cards for transfer area and files area.
-- Styles for:
-  - `.drop-zone` (drag highlight, cursor, spacing).
-  - Buttons (`.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`).
-  - Uploaded file rows, links, actions, and progress bars.
-  - QR section text and container.
+### 4.5 Styling (`client/src/styles.css`)
+
+- **Base layout**:
+  - `html, body, #root`:
+    - `height: 100%`, no margins, and `overflow-x: hidden` to prevent horizontal scroll.
+  - `.app-root`:
+    - Full-height flex column.
+    - Centered with `max-width` and `margin: 0 auto`.
+    - `width: 100%` with `overflow-x: hidden` to constrain content.
+  - `.app-main`:
+    - Grid layout:
+      - Single column on small screens.
+      - Two columns (`3fr 2fr`) from `min-width: 768px` (transfer area + files area).
+  - `.transfer-area`, `.files-area`:
+    - Card-style surfaces with border, radius, and soft box shadow.
+
+- **Forms and buttons**:
+  - Buttons (`.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`):
+    - Mobile-first: full-width by default; become auto-width with a minimum width on larger screens.
+    - Consistent colors, hover states, and disabled styling.
+  - `.icon-button`:
+    - Compact padding for icon-only buttons (trash icon in uploaded list).
+
+- **File name handling & responsiveness**:
+  - Selected and uploaded filenames:
+    - JS-level truncation of base name, with extension shown in full.
+    - Additional CSS ellipsis in `.selected-file-item` and `.file-name-main` to guard against overflow.
+  - `.uploaded-file-row`, `.uploaded-file-link`, `.file-name`:
+    - Use `flex` with `min-width: 0` and `max-width: 100%` so long names cannot expand the layout horizontally.
+  - Global overflow:
+    - Top-level containers and modals are clamped to `<= 90vw` width so they stay inside the viewport.
+
+- **Zoom and selection**:
+  - `body`:
+    - Disables text selection (`user-select: none`) across the app.
+    - Removes tap highlight on mobile.
+  - `index.html` viewport:
+    - `initial-scale=1`, `minimum-scale=1`, `maximum-scale=1`, `user-scalable=no` to discourage zoom.
+  - Buttons:
+    - `touch-action: manipulation` to reduce double-tap zoom.
+
+- **Toasts**:
+  - `.toast-container`:
+    - Fixed at the bottom center of the viewport.
+  - `.toast`:
+    - Bounded by `max-width: 90vw` to fit on small screens.
+    - Colored by type (success, error, info, warning).
+
+- **Footer**:
+  - `.app-footer`:
+    - Centered text for QR trigger and author line.
+    - Subtle top border to separate it from content.
 
 ## 5. Dev & Run Workflow
 
 - **Server**:
   - Node project under `server/` (`server/package.json`).
-  - You can run manually with:
+  - Run manually with:
     - `cd server && node index.js`
 - **Client (React)**:
   - Node project under `client/`.
@@ -176,20 +290,28 @@ This document describes the current structure and responsibilities of the projec
     - `./mysnapdrop.sh stop-client` – stop client via `.client.pid`.
     - `./mysnapdrop.sh start-all` – start both server and client.
   - Access:
-    - React app: `http://localhost:5173` (or `http://<local-ip>:5173` from other devices on LAN).
-    - API: `http://localhost:3000` (or `http://<local-ip>:3000`).
+    - React app: `http://localhost:5173` or `http://<local-ip>:5173` from other devices on LAN.
+    - API: `http://localhost:3000` or `http://<local-ip>:3000`.
 
 ## 6. Status vs. Improvement Plan
 
-- Current status:
-  - React frontend is a functional rewrite of the basic legacy UI.
-  - No major UI/UX improvements yet (alerts still used, basic styling, no PWA).
-  - Architecture is split cleanly into `server/` and `client/`.
-- Planned improvements:
-  - See `IMPROVEMENT_PLAN.md` for detailed React/UI/UX enhancements (responsiveness, no-select/no-zoom, toasts, better layout, accessibility, eventual PWA support).
+- **Current status**:
+  - React frontend is in place with:
+    - Responsive layout across phone/tablet/desktop.
+    - Drag-and-drop uploads, per-file progress, duplicate handling, and filename truncation.
+    - In-app toasts instead of `alert()` for success/error/info.
+    - Clear-all uploaded files flow with confirmation dialog.
+    - QR modal to open the app on another device.
+    - Basic zoom and text-selection restrictions for a more app-like feel.
+  - Backend supports per-file and bulk deletion, with safer download error handling.
+  - Architecture is cleanly split into `server/` and `client/` with a lightweight dev script (`mysnapdrop.sh`).
+- **Planned / optional future work** (see `IMPROVEMENT_PLAN.md` for details):
+  - Full PWA support (manifest, service worker, offline shell).
+  - More polished design system (icons, animations, theming).
+  - Dark mode, additional metadata, or internationalization if needed.
 
 This document should be updated when we:
-- Change how server or client is started.
-- Introduce a real build pipeline for serving the React app from Express.
-- Modify the API surface or significant UI structure.
+- Change how the server or client are started/built.
+- Introduce a production build pipeline for serving the React app from Express.
+- Modify the API surface or significant UI structures.
 
