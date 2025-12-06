@@ -1,16 +1,47 @@
 {
-  "name": "snapdrop",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "mysnapdrop-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "setup": "npm install && npm install --prefix server && npm install --prefix client",
+    "clean": "npm run clean:electron && npm run clean:client && npm run clean:server && npm run clean:pids",
+    "clean:electron": "rimraf dist_electron",
+    "clean:client": "rimraf client/dist client/node_modules/.vite client/node_modules/.vite-temp",
+    "clean:server": "rimraf server/uploads",
+    "clean:pids": "rimraf .server.pid .client.pid",
+    "build": "npm run electron:build",
+    "electron:start": "electron .",
+    "electron:dev": "npm run dev:electron",
+    "dev:electron": "concurrently \"cd server && node index.js\" \"cd client && npm run dev\" \"cross-env ELECTRON_DEV=true electron .\"",
+    "build:client": "cd client && npm run build",
+    "electron:build": "npm run build:client && electron-builder"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "express": "^5.1.0",
     "express-fileupload": "^1.5.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
+    "rimraf": "^5.0.5"
+  },
+  "build": {
+    "appId": "com.mysnapdrop.app",
+    "productName": "MySnapDrop",
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "client/dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "icon": "client/dist/mysnapdropico.png"
+    }
   }
 }

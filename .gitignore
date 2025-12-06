@@ -1,2 +1,8 @@
 node_modules/
-uploads/
+server/node_modules/
+client/node_modules/
+server/uploads/
+.server.pid
+.client.pid
+client/dist/
+dist_electron/
