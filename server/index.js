@@ -11,9 +11,15 @@ const port = 3000;
 const publicDir = path.join(__dirname, 'public');
 const uploadsDir = path.join(__dirname, 'uploads');
 const tempDir = path.join(os.tmpdir(), 'snapdrop-uploads');
+const clientDistDir = path.join(__dirname, '..', 'client', 'dist');
+const reactIndexHtml = path.join(clientDistDir, 'index.html');
 
 // Middleware: serve static assets from the server/public directory
 app.use(express.static(publicDir));
+
+if (fs.existsSync(clientDistDir)) {
+  app.use(express.static(clientDistDir));
+}
 
 // Ensure uploads and temp directories exist on startup
 try {
@@ -40,7 +46,11 @@ app.use(
 
 // Routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
+  if (fs.existsSync(reactIndexHtml)) {
+    return res.sendFile(reactIndexHtml);
+  }
+
+  return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 app.post('/upload', (req, res) => {

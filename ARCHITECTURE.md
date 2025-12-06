@@ -1,11 +1,11 @@
-﻿# MySnapDrop – Current Architecture
+# MySnapDrop – Current Architecture
 
 This document describes the current structure and behavior of the project so we can track changes over time.
 
 ## 1. High-Level Overview
 
 - **Goal**: Simple local-network file sharing, similar to Snapdrop.
-- **Backend**: Node.js + Express (file uploads, listing, download, delete, clear-all).
+- **Backend**: Node.js + Express (file uploads, listing, metadata, download, delete, clear-all).
 - **Frontend**:
   - Legacy static HTML/JS UI served from `server/public/index.html` (kept as a fallback/reference).
   - React SPA in `client/` used during development via Vite, talking to the Express API.
@@ -21,20 +21,23 @@ This document describes the current structure and behavior of the project so we 
 - `client/`
   - `package.json`, `package-lock.json`, `node_modules/`: React/Vite dependencies.
   - `vite.config.mts`: Vite config (React plugin, dev server, API proxy).
-  - `index.html`: Vite entry HTML for the React app (includes QRCode script and locked viewport meta).
-  - `src/main.jsx`: React bootstrapping (renders `<App />` into `#root` and applies extra touch/zoom handlers).
-  - `src/App.jsx`: main React app component with upload logic, notifications, and dialogs.
+  - `index.html`: Vite entry HTML for the React app (includes QRCode script, Google fonts, manifest, viewport meta, favicon).
+  - `public/manifest.webmanifest`: PWA manifest (name, colors, icons pointing to `mysnapdropico.png`).
+  - `public/sw.js`: service worker for caching the app shell (`/`, `/index.html`).
+  - `public/mysnapdropico.png`: app icon used by PWA/shortcut.
+  - `src/main.jsx`: React bootstrapping (renders `<App />` into `#root`, applies extra touch/zoom handlers, and registers the service worker).
+  - `src/App.jsx`: main React app component with upload logic, notifications, dialogs, theme and server-status handling.
   - `src/components/DropZone.jsx`: drag-and-drop + click-to-select file input and selected files preview.
   - `src/components/FileControls.jsx`: Upload / Clear Selected Files controls.
-  - `src/components/UploadedFilesList.jsx`: uploaded files list with per-file delete, clear-all action, and progress bars.
-  - `src/components/QrSection.jsx`: QR code trigger and modal using the globally injected QRCode library.
-  - `src/styles.css`: global styling, layout, and responsive behavior.
+  - `src/components/UploadedFilesList.jsx`: uploaded files list with per-file delete, clear-all action, file-type icons, and metadata (size, progress).
+  - `src/components/QrSection.jsx`: QR trigger and modal using the globally injected QRCode library.
+  - `src/styles.css`: global styling, layout, theming, and responsive behavior.
 - Root
-  - `mysnapdrop.sh`: helper script to manage server/client processes.
-  - `IMPROVEMENT_PLAN.md`: planned and partially completed UI/UX improvements.
+  - `mysnapdrop.sh`: helper script to manage server/client processes (`start-server`, `stop-server`, `start-client`, `stop-client`, `start-all`).
+  - `IMPROVEMENT_PLAN.md`: planned and completed UI/UX improvements.
   - `WORKFLOW.md`: collaboration and review workflow.
   - `ARCHITECTURE.md`: this document.
-  - `.gitignore`: ignores `node_modules`, `uploads`, `server/uploads`, and PID files.
+  - `.gitignore`: ignores `node_modules`, `uploads`, `server/uploads`, and `.server.pid`, `.client.pid`.
   - `.server.pid`, `.client.pid`: runtime PID files produced by `mysnapdrop.sh`.
 
 ## 3. Backend (server/)
@@ -63,6 +66,10 @@ This document describes the current structure and behavior of the project so we 
     - Avoids overwriting by adding a timestamp if the sanitized name already exists.
   - `GET /files`
     - Returns JSON array of filenames stored in `uploads/`.
+  - `GET /files/meta`
+    - Returns an array of file metadata objects for regular files in `uploads/`:
+      - `{ name, size, mtimeMs }`.
+    - Uses `fs.statSync` to gather size and modification time, skipping non-files and failures.
   - `GET /download/:filename`
     - Downloads a specific file from `uploads/`.
     - Defensive callback:
@@ -109,74 +116,113 @@ This document describes the current structure and behavior of the project so we 
 - Renders `<App />` inside `#root` using `ReactDOM.createRoot` and `React.StrictMode`.
 - Imports global styles from `styles.css`.
 - Adds best-effort zoom-prevention handlers (in addition to viewport meta):
-  - Intercepts `gesturestart` to prevent pinch-zoom where supported.
+  - Intercepts `gesturestart` to try to prevent pinch-zoom where supported.
   - Intercepts rapid `touchend` events to mitigate double-tap zoom.
   - Note: modern mobile browsers may still allow zoom for accessibility; this is a best-effort layer.
+- Registers the service worker:
+  - On `window.load`, calls `navigator.serviceWorker.register("/sw.js")` if supported.
+  - Logs failures to `console.error` but does not block the app.
 
 ### 4.3 App Component (`client/src/App.jsx`)
 
-Manages application state and wires components to the backend API.
+The `App` component manages core state and coordinates API calls and UI components.
 
 - **State**:
-  - `selectedFiles`: files chosen for upload.
-  - `uploadedFiles`: filenames currently on the server.
-  - `uploadProgress`: per-file upload progress percentages.
-  - `notifications`: single active toast notification (success, error, info, warning).
+  - `selectedFiles`: `File[]` chosen for upload.
+  - `uploadedFiles`: metadata for files on the server:
+    - `{ name: string; size: number; mtimeMs: number }`.
+  - `uploadProgress`: object keyed by filename with percentage values for in-flight uploads.
+  - `notifications`: single active toast (type + message).
   - `confirmClearAllOpen`: whether the “clear all uploaded files” confirmation dialog is open.
+  - `aboutOpen`: whether the About dialog is open.
+  - `theme`: `"light"` or `"dark"`; toggles a CSS class on `<body>`.
+  - `serverOnline`: boolean indicating whether the last fetch to the backend succeeded.
+- **Derived values**:
+  - `uploadingFiles`:
+    - `Object.keys(uploadProgress)`; used to show progress bars for filenames currently uploading.
+  - `selectionSummary`:
+    - A small string summarizing selected files, e.g., `3 files · 12.4 MB`.
+    - Computed from `selectedFiles` count and total size.
+  - `canUpload`:
+    - `selectedFiles.length > 0 && serverOnline`.
+    - Controls the Upload button disabled state.
+- **Theme and server status effects**:
+  - When `theme` changes:
+    - Adds or removes `theme-dark` class on `document.body`.
+  - When `fetchFiles()` succeeds:
+    - Sets `serverOnline = true`.
+  - When `fetchFiles()` fails:
+    - Sets `serverOnline = false` and shows an error toast.
 - **Notifications**:
   - `showNotification(type, message)`:
-    - Replaces any existing toast with a new one (no stacking).
+    - Replaces the current toast with `{ id, type, message }`.
     - Auto-dismisses after ~3.5 seconds.
-  - Toasts are rendered in a bottom-center `.toast-container`.
+  - Toasts are rendered in a bottom-center `.toast-container` and can be dismissed by click.
 - **API integration**:
   - `fetchFiles()`:
-    - `GET /files`, populates `uploadedFiles`.
-    - On failure shows an error toast.
+    - Tries `GET /files/meta` first:
+      - If OK and returns an array, maps it to `{ name, size, mtimeMs }` objects and sets `uploadedFiles`.
+    - If `/files/meta` is unavailable or fails:
+      - Falls back to `GET /files` (names-only).
+      - Maps names to `{ name, size: 0, mtimeMs: 0 }`.
+    - On any error after both attempts:
+      - Marks `serverOnline = false` and shows an error toast.
   - `uploadFileWithRetry(file)`:
     - Uses `XMLHttpRequest` to `POST /upload`.
-    - Tracks upload progress via `xhr.upload.onprogress` → updates `uploadProgress[file.name]`.
+    - Tracks upload progress and updates `uploadProgress[file.name]`.
     - Retries on status `0` or 5xx with exponential backoff (up to 3 attempts).
     - On success:
-      - Shows success toast per file.
-      - Clears progress entry and refreshes the list via `fetchFiles()`.
+      - Shows a success toast per file.
+      - Clears progress entry and refreshes `uploadedFiles` via `fetchFiles()`.
     - On final failure:
-      - Shows error toast and clears progress entry.
+      - Shows an error toast and clears progress entry.
   - `handleDeleteFile(filename)`:
-    - `DELETE /files/:filename`.
+    - If `serverOnline` is `false`, shows an error toast and returns early.
+    - Otherwise sends `DELETE /files/:filename`.
     - Shows success or error toast based on response text and status.
     - Refreshes `uploadedFiles` via `fetchFiles()`.
   - `performClearAllUploaded()`:
+    - Called when the user confirms clear-all in the modal.
     - First attempts bulk `DELETE /files`:
-      - On success, shows success toast, clears `uploadedFiles`, and refetches.
-      - On non-404 error, shows error toast.
-    - If bulk is unavailable / 404 or bulk request fails:
-      - Falls back to deleting each file via `DELETE /files/:filename` in a loop.
+      - On success, shows a success toast, clears `uploadedFiles`, and refetches.
+      - On non-404 error, shows an error toast and closes the dialog.
+    - If bulk is unavailable / 404 or request fails:
+      - Falls back to deleting each file via `DELETE /files/:filename` in a loop using current `uploadedFiles`.
       - Summarizes results with success/warning/error toast.
-    - Closes the confirmation dialog afterwards.
+      - Refetches the list and closes the dialog.
 - **Selection & upload rules**:
   - `handleFilesSelected(files)`:
-    - Merges new files into `selectedFiles` while avoiding exact duplicates in the current selection (same name + size).
+    - Merges new files into `selectedFiles`.
+    - Avoids exact duplicates in the current selection (same name + size).
     - For duplicates, increments a skipped count and shows an info toast like `X duplicate file(s) were skipped.`.
   - `handleUpload()`:
-    - If no selected files, shows info toast.
-    - Compares `selectedFiles` against `uploadedFiles`:
-      - Files whose name already exists on the server are skipped.
-      - Shows a warning toast indicating how many will be skipped (with a short preview of names).
-    - If no new files remain, shows info toast and returns.
+    - If `serverOnline` is `false`, shows an error toast and returns.
+    - If no selected files, shows an info toast and returns.
+    - Compares `selectedFiles` against `uploadedFiles` by filename:
+      - Files whose name already exists on the server are added to a `skipped` list.
+      - Shows a warning toast indicating how many will be skipped (with a short preview of filenames).
     - Uploads only new files via `uploadFileWithRetry`.
+    - If no new files remain, shows an info toast and returns.
     - Clears `selectedFiles` after starting uploads.
 - **Rendering**:
   - Top-level layout:
-    - Header with app title and subtitle.
-    - Main grid with:
-      - Transfer area: `DropZone` + `FileControls`.
+    - Header with:
+      - App title and subtitle.
+      - Right-aligned status section:
+        - Green/red status dot that reflects `serverOnline`.
+        - Theme toggle (“Dark mode” / “Light mode”).
+    - Main grid:
+      - Transfer area: `DropZone` + `FileControls` + selection summary and offline hint.
       - Files area: `UploadedFilesList`.
     - Footer:
       - `QrSection` (QR trigger and modal).
-      - Author line: `Author: hungti17 - nphung75@gmail.com`.
+      - Author line: `Author: hungti17 – nphung75@gmail.com` and an “About” link.
   - Dialogs:
     - QR modal (for scanning on another device).
     - Clear-all confirmation modal (before bulk deletion).
+    - About modal explaining how to use the app and QR feature.
+  - Offline hint:
+    - When `serverOnline` is `false`, shows a small red hint under the upload controls explaining that the server is offline and actions are disabled until the backend is started.
 
 ### 4.4 Components
 
@@ -186,25 +232,31 @@ Manages application state and wires components to the backend API.
   - Calls `onFilesSelected(files[])` when files are selected or dropped.
   - Displays selected files:
     - Splits each filename into base name + extension.
-    - Truncates the base name in JS to a maximum length with `…` (e.g., `very-long-name… .txt`).
+    - Truncates the base name in JS to a maximum length with `…`, e.g., `very-long-name… .txt`.
     - Shows the full name in the `title` tooltip.
 
 - **`FileControls.jsx`**
   - Buttons below the drop zone:
     - `Upload` (primary):
-      - Disabled when `selectedFiles` is empty.
+      - Disabled if `selectedFiles` is empty or `serverOnline` is `false`.
+      - Shows an upload icon plus label.
       - Calls `onUpload()`.
     - `Clear Selected Files` (secondary):
-      - Always visible; clears current selection via `onClear()`.
+      - Shows a clear/“X” icon plus label.
+      - Calls `onClear()` to empty `selectedFiles`.
 
 - **`UploadedFilesList.jsx`**
-  - Shows current `files` (from `/files`) as rows.
+  - Shows current `files` (metadata from `/files/meta` or names transformed by the client) as rows.
   - Each row:
-    - A download link to `/download/<filename>`.
-    - The filename rendered with the same base/ext truncation logic as selected files.
-    - A trash icon button (no text) to remove the file:
-      - Calls `onDelete(filename)`.
-    - Optional progress bar when file is in `uploadingFiles`.
+    - Download link to `/download/<filename>`.
+    - File-type icon:
+      - Base “document” icon, color-coded by kind:
+        - Image, video, audio, archive, doc, other.
+    - Truncated filename (base + extension).
+    - Optional size label, e.g., `1.2 MB`, when size is known.
+    - Trash icon button to remove the file:
+      - Calls `onDelete(filename)` and is disabled only logically when the server is offline (guarded in `App`).
+    - Optional progress bar when filename is in `uploadingFiles`, using `uploadProgress[name]`.
   - Footer inside the section:
     - `Clear all uploaded files` button (secondary):
       - Always visible but disabled when there are no uploaded files.
@@ -239,15 +291,18 @@ Manages application state and wires components to the backend API.
   - Buttons (`.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`):
     - Mobile-first: full-width by default; become auto-width with a minimum width on larger screens.
     - Consistent colors, hover states, and disabled styling.
+    - Minimum height for comfortable touch targets.
   - `.icon-button`:
     - Compact padding for icon-only buttons (trash icon in uploaded list).
+  - `.btn-icon`, `.btn-label`:
+    - Small icon + label layout for primary actions.
 
 - **File name handling & responsiveness**:
   - Selected and uploaded filenames:
-    - JS-level truncation of base name, with extension shown in full.
+    - JS-level truncation of the base name, with extension shown in full.
     - Additional CSS ellipsis in `.selected-file-item` and `.file-name-main` to guard against overflow.
   - `.uploaded-file-row`, `.uploaded-file-link`, `.file-name`:
-    - Use `flex` with `min-width: 0` and `max-width: 100%` so long names cannot expand the layout horizontally.
+    - Use flexbox with `min-width: 0` and `max-width: 100%` so long names cannot expand the layout horizontally.
   - Global overflow:
     - Top-level containers and modals are clamped to `<= 90vw` width so they stay inside the viewport.
 
@@ -260,17 +315,32 @@ Manages application state and wires components to the backend API.
   - Buttons:
     - `touch-action: manipulation` to reduce double-tap zoom.
 
-- **Toasts**:
+- **Toasts and dialogs**:
   - `.toast-container`:
     - Fixed at the bottom center of the viewport.
   - `.toast`:
     - Bounded by `max-width: 90vw` to fit on small screens.
     - Colored by type (success, error, info, warning).
+    - Short slide/fade-in animation for appearance.
+  - `.qr-modal`, `.confirm-modal`:
+    - Centered cards with fade/scale-in animations for opening.
 
-- **Footer**:
+- **Footer and header**:
+  - `.app-header`:
+    - Row layout with title/description on the left and status/theme toggle on the right.
+    - Status dot color reflects backend availability.
   - `.app-footer`:
     - Centered text for QR trigger and author line.
     - Subtle top border to separate it from content.
+
+- **Dark theme overrides**:
+  - `body.theme-dark`:
+    - Overrides key CSS variables for a dark palette:
+      - Dark background and surface.
+      - Darker borders.
+      - Light text and muted text.
+    - Uses a dark radial gradient background.
+  - The rest of the app consumes these variables, so dark mode works without duplicating styles.
 
 ## 5. Dev & Run Workflow
 
@@ -300,15 +370,21 @@ Manages application state and wires components to the backend API.
     - Responsive layout across phone/tablet/desktop.
     - Drag-and-drop uploads, per-file progress, duplicate handling, and filename truncation.
     - In-app toasts instead of `alert()` for success/error/info.
-    - Clear-all uploaded files flow with confirmation dialog.
+    - Clear-all uploaded files flow with confirmation dialog and fallback logic.
     - QR modal to open the app on another device.
     - Basic zoom and text-selection restrictions for a more app-like feel.
-  - Backend supports per-file and bulk deletion, with safer download error handling.
+    - Dark mode toggle (light/dark themes) using CSS variables.
+    - Status dot and offline hint that reflect server availability and guard actions when offline.
+    - File metadata display (size) and color-coded file-type icons in the uploaded list.
+    - Selection summary showing count and total size of selected files.
+    - About dialog explaining usage and QR feature.
+  - Backend supports per-file and bulk deletion, safe downloads, filenames sanitization, and metadata via `/files/meta`.
+  - PWA basics are wired: manifest, icon, and shell service worker.
   - Architecture is cleanly split into `server/` and `client/` with a lightweight dev script (`mysnapdrop.sh`).
 - **Planned / optional future work** (see `IMPROVEMENT_PLAN.md` for details):
-  - Full PWA support (manifest, service worker, offline shell).
-  - More polished design system (icons, animations, theming).
-  - Dark mode, additional metadata, or internationalization if needed.
+  - Deeper PWA capabilities (offline caching of assets beyond the shell, better offline UI messaging).
+  - More polished design system (finer typography tuning, more micro-animations).
+  - Internationalization (i18n) and additional metadata if needed.
 
 This document should be updated when we:
 - Change how the server or client are started/built.

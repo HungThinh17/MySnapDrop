@@ -76,7 +76,38 @@ These are not required now but align with the same minimalist direction:
 - [ ] PWA support (manifest, service worker, offline shell).
 - [ ] Dark mode with the same accent color and card structure.
 - [ ] Additional metadata in file list (size, upload time) displayed subtly below the filename.
-- [ ] Simple “About” or “Help” dialog explaining how to use the app and QR feature.
+- [ ] Simple "About" or "Help" dialog explaining how to use the app and QR feature.
 
 We can work through these sections one by one. If you want, we can prioritize (e.g., start with color + typography, then micro-interactions, then icons) before implementing. 
 
+## 8. Electron Desktop Packaging (New)
+
+Wrap the existing server + React frontend into a cross-platform desktop app.
+
+- [ ] Decide Electron architecture:
+  - [ ] Use a root-level `electron-main` entry (e.g., `electron/main.js`) that starts the Express server and opens a `BrowserWindow`.
+  - [ ] For development, point the window at the Vite dev server (`http://localhost:5173`).
+  - [ ] For production, point the window at the built app served by Express (or a local `file://` URL).
+- [ ] Set up Electron dependencies and scripts:
+  - [ ] Add Electron to the project (either root or a dedicated `desktop/` folder).
+  - [ ] Add npm scripts for:
+    - [ ] `electron:dev` – start server, start Vite, then launch Electron.
+    - [ ] `electron:build` – build client, prepare server, package Electron app.
+- [ ] Integrate backend server with Electron:
+  - [ ] Ensure the Express server from `server/index.js` can be required/started from the Electron main process.
+  - [ ] Handle port selection (default 3000) and ensure only one server instance starts.
+  - [ ] Gracefully shut down the server when the Electron app quits.
+- [ ] Wire up the frontend inside Electron:
+  - [ ] In dev: `BrowserWindow.loadURL("http://localhost:5173")` (using the proxy to the Express API).
+  - [ ] In production: `BrowserWindow.loadURL("http://localhost:3000")` or `loadFile` for the built React bundle, depending on the chosen architecture.
+  - [ ] Confirm file upload/download paths work correctly in the Electron context (local filesystem vs app folder).
+- [ ] Add basic Electron app polish:
+  - [ ] Use `mysnapdropico.png` as the window/taskbar icon where supported.
+  - [ ] Set a sensible app name and about metadata.
+  - [ ] Disable default menu (or keep a minimal one) to preserve the clean look.
+- [ ] Packaging and distribution:
+  - [ ] Choose a packaging tool (e.g., `electron-builder` or `electron-forge`) and configure:
+    - [ ] App ID, product name, icons.
+    - [ ] Output folders for Windows/macOS/Linux (as needed).
+  - [ ] Ensure the packaged app bundles the server, static frontend, and Electron main process together.
+  - [ ] Document how to build and run the desktop app in README or a short `DESKTOP.md`.
