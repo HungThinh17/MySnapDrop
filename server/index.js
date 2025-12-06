@@ -7,12 +7,15 @@ const fs = require('fs');
 const app = express();
 const port = 3000;
 
-// Middleware
-app.use(express.static('public'));
-
-// Ensure uploads directory exists on startup
+// Paths relative to the server directory
+const publicDir = path.join(__dirname, 'public');
 const uploadsDir = path.join(__dirname, 'uploads');
 const tempDir = path.join(os.tmpdir(), 'snapdrop-uploads');
+
+// Middleware: serve static assets from the server/public directory
+app.use(express.static(publicDir));
+
+// Ensure uploads and temp directories exist on startup
 try {
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -27,18 +30,17 @@ try {
 // Configure file upload middleware with safer defaults
 app.use(
   fileUpload({
-    // Stream to temp files to avoid large memory usage
     useTempFiles: true,
     tempFileDir: tempDir,
     createParentPath: true,
     safeFileNames: true,
-    preserveExtension: true,
+    preserveExtension: true
   })
 );
 
 // Routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 app.post('/upload', (req, res) => {
@@ -48,7 +50,6 @@ app.post('/upload', (req, res) => {
     }
 
     let uploadedFile = req.files.file;
-    // Handle array case defensively if client ever batches
     if (Array.isArray(uploadedFile)) {
       uploadedFile = uploadedFile[0];
     }
@@ -97,7 +98,6 @@ app.get('/files', (req, res) => {
       if (err) {
         return res.status(500).send('Failed to read uploads directory.');
       }
-      // Return only regular files
       return res.json(files.filter(Boolean));
     });
   } catch (e) {
@@ -139,8 +139,8 @@ app.delete('/files/:filename', (req, res) => {
 // Get local IP address
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
-  for (let interface in interfaces) {
-    const addresses = interfaces[interface];
+  for (const name in interfaces) {
+    const addresses = interfaces[name];
     for (let i = 0; i < addresses.length; i++) {
       const address = addresses[i];
       if (address.family === 'IPv4' && !address.internal) {
@@ -156,3 +156,4 @@ app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   console.log(`Access the app at http://${getLocalIP()}:${port}`);
 });
+
