@@ -12,29 +12,62 @@ export function QrSection() {
       return;
     }
 
-    const host = window.location.hostname;
-    const port = window.location.port;
-    const url = `http://${host}${port ? `:${port}` : ""}`;
+    let cancelled = false;
 
-    if (!containerRef.current) return;
+    const buildQr = async () => {
+      let url = "";
 
-    containerRef.current.innerHTML = "";
+      try {
+        const response = await fetch("/status");
+        if (response.ok) {
+          const data = await response.json();
+          if (data && typeof data.origin === "string" && data.origin) {
+            url = data.origin;
+          } else if (data && data.ip) {
+            const portFromServer =
+              typeof data.port === "number" ? data.port : null;
+            const portPart = portFromServer ? `:${portFromServer}` : "";
+            url = `http://${data.ip}${portPart}`;
+          }
+        }
+      } catch {
+        // Ignore and fall back to window.location below.
+      }
 
-    // @ts-ignore - QRCode is provided by external script
-    const QRCodeCtor = window.QRCode;
-    if (!QRCodeCtor) {
-      return;
-    }
+      if (!url) {
+        const protocol =
+          window.location.protocol === "https:" ? "https://" : "http://";
+        const host = window.location.hostname;
+        const port = window.location.port;
+        url = `${protocol}${host}${port ? `:${port}` : ""}`;
+      }
 
-    // @ts-ignore
-    new QRCodeCtor(containerRef.current, {
-      text: url,
-      width: 180,
-      height: 180,
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCodeCtor.CorrectLevel?.H ?? 0
-    });
+      if (!containerRef.current || cancelled) return;
+
+      containerRef.current.innerHTML = "";
+
+      // @ts-ignore - QRCode is provided by external script
+      const QRCodeCtor = window.QRCode;
+      if (!QRCodeCtor) {
+        return;
+      }
+
+      // @ts-ignore
+      new QRCodeCtor(containerRef.current, {
+        text: url,
+        width: 180,
+        height: 180,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCodeCtor.CorrectLevel?.H ?? 0
+      });
+    };
+
+    buildQr();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const handleOpen = () => setOpen(true);

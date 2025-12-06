@@ -12,7 +12,8 @@ export default defineConfig({
     proxy: {
       "/upload": "http://localhost:3000",
       "/files": "http://localhost:3000",
-      "/download": "http://localhost:3000"
+      "/download": "http://localhost:3000",
+      "/status": "http://localhost:3000"
     }
   },
   build: {

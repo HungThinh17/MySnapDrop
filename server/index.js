@@ -5,21 +5,33 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = process.env.MYSD_SERVER_PORT
+  ? parseInt(process.env.MYSD_SERVER_PORT, 10) || 3000
+  : 3000;
 
 // Paths relative to the server directory
 const publicDir = path.join(__dirname, 'public');
-const uploadsDir = path.join(__dirname, 'uploads');
+const defaultUploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = process.env.MYSD_UPLOADS_DIR || defaultUploadsDir;
 const tempDir = path.join(os.tmpdir(), 'snapdrop-uploads');
 const clientDistDir = path.join(__dirname, '..', 'client', 'dist');
+const clientAssetsDir = path.join(clientDistDir, 'assets');
 const reactIndexHtml = path.join(clientDistDir, 'index.html');
 
-// Middleware: serve static assets from the server/public directory
-app.use(express.static(publicDir));
-
+// Middleware: serve static assets
 if (fs.existsSync(clientDistDir)) {
+  // Serve built React app (HTML, JS, CSS).
   app.use(express.static(clientDistDir));
+
+  // Explicitly serve hashed JS/CSS bundles under /assets to avoid any
+  // ambiguity in packaged environments.
+  if (fs.existsSync(clientAssetsDir)) {
+    app.use('/assets', express.static(clientAssetsDir));
+  }
 }
+
+// Legacy static assets fallback.
+app.use(express.static(publicDir));
 
 // Ensure uploads and temp directories exist on startup
 try {
@@ -229,6 +241,25 @@ app.delete('/files/:filename', (req, res) => {
   });
 });
 
+app.get('/status', (req, res) => {
+  try {
+    const ip = getLocalIP();
+    const hostForOrigin = ip || req.hostname || 'localhost';
+    const protocol = req.protocol === 'https' ? 'https' : 'http';
+
+    res.json({
+      ip: ip || null,
+      port,
+      origin: `${protocol}://${hostForOrigin}:${port}`
+    });
+  } catch (e) {
+    console.error('Failed to compute server status:', e);
+    res
+      .status(500)
+      .json({ error: 'Failed to determine server status.' });
+  }
+});
+
 // Get local IP address
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
@@ -245,7 +276,7 @@ function getLocalIP() {
 }
 
 // Start server
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server listening on port ${port}`);
   console.log(`Access the app at http://${getLocalIP()}:${port}`);
 });

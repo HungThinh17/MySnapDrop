@@ -16,6 +16,7 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [theme, setTheme] = useState("light");
   const [serverOnline, setServerOnline] = useState(true);
+  const [hasShownOfflineToast, setHasShownOfflineToast] = useState(false);
 
   const canUpload = selectedFiles.length > 0 && serverOnline;
 
@@ -100,16 +101,30 @@ export function App() {
 
       setUploadedFiles(meta || []);
       setServerOnline(true);
+      setHasShownOfflineToast(false);
     } catch (error) {
       console.error(error);
       setServerOnline(false);
-      showNotification("error", "Failed to fetch files.");
+      if (!hasShownOfflineToast) {
+        showNotification("error", "Failed to fetch files.");
+        setHasShownOfflineToast(true);
+      }
     }
-  }, [showNotification]);
+  }, [showNotification, hasShownOfflineToast]);
 
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (uploadingFiles.length === 0) {
+        fetchFiles();
+      }
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [fetchFiles, uploadingFiles.length]);
 
   const handleFilesSelected = (files) => {
     if (!files || files.length === 0) {
@@ -388,8 +403,18 @@ export function App() {
     }
   };
 
+  const handleRootDoubleClick = () => {
+    if (
+      typeof window !== "undefined" &&
+      window.mysnapdropDesktop &&
+      typeof window.mysnapdropDesktop.clearCacheAndReload === "function"
+    ) {
+      window.mysnapdropDesktop.clearCacheAndReload();
+    }
+  };
+
   return (
-    <div className="app-root">
+    <div className="app-root" onDoubleClick={handleRootDoubleClick}>
       <div className="toast-container" aria-live="polite" aria-atomic="true">
         {notifications.map((n) => (
           <div

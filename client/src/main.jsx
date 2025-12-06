@@ -35,6 +35,19 @@ if (typeof window !== "undefined") {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
+    const ua = navigator.userAgent || "";
+    const isElectron = ua.toLowerCase().includes("electron");
+
+    if (isElectron) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => {
+          regs.forEach((reg) => reg.unregister());
+        })
+        .catch(() => {});
+      return;
+    }
+
     navigator.serviceWorker
       .register("/sw.js")
       .catch((err) => console.error("Service worker registration failed:", err));
