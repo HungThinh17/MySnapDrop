@@ -113,11 +113,57 @@ app.get('/download/:filename', (req, res) => {
     return res.status(404).send('File not found');
   }
 
-  res.download(filePath, filename, (err) => {
-    if (err) {
-      return res.status(500).send('Failed to download file');
+	  res.download(filePath, filename, (err) => {
+	    if (err) {
+	      // If headers are already sent (e.g., client aborted mid-download),
+	      // just log the error instead of trying to send another response.
+	      if (res.headersSent || res.writableEnded) {
+	        console.error('Download error after headers sent:', err);
+	        return;
+	      }
+
+	      // For aborted connections, don't treat it as a server failure.
+	      if (err.code === 'ECONNABORTED' || err.code === 'ECONNRESET') {
+	        console.warn('Download aborted by client:', err.message);
+	        return;
+	      }
+
+	      return res.status(500).send('Failed to download file');
     }
   });
+});
+
+app.delete('/files', (req, res) => {
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      return res.send('No uploaded files to clear.');
+    }
+
+    const files = fs.readdirSync(uploadsDir);
+    let deletedCount = 0;
+
+    files.forEach((file) => {
+      const filePath = path.join(uploadsDir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile()) {
+          fs.unlinkSync(filePath);
+          deletedCount += 1;
+        }
+      } catch (e) {
+        console.error('Failed to delete file while clearing all:', filePath, e);
+      }
+    });
+
+    return res.send(
+      deletedCount === 0
+        ? 'No uploaded files to clear.'
+        : `Deleted ${deletedCount} uploaded file(s).`
+    );
+  } catch (e) {
+    console.error('Failed to clear uploaded files directory:', e);
+    return res.status(500).send('Failed to clear all uploaded files.');
+  }
 });
 
 app.delete('/files/:filename', (req, res) => {
@@ -156,4 +202,3 @@ app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   console.log(`Access the app at http://${getLocalIP()}:${port}`);
 });
-

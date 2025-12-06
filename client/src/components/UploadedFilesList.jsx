@@ -3,6 +3,7 @@ import React from "react";
 export function UploadedFilesList({
   files,
   onDelete,
+  onClearAll,
   uploadProgress,
   uploadingFiles
 }) {
@@ -38,7 +39,16 @@ export function UploadedFilesList({
           </div>
         </div>
       ))}
+      <div className="uploaded-files-footer">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onClearAll}
+          disabled={files.length === 0}
+        >
+          Clear all uploaded files
+        </button>
+      </div>
     </div>
   );
 }
-
