@@ -13,6 +13,7 @@ export function App() {
   const [uploadProgress, setUploadProgress] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [confirmClearAllOpen, setConfirmClearAllOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const canUpload = selectedFiles.length > 0;
 
@@ -356,9 +357,49 @@ export function App() {
           </div>
         </div>
       )}
+      {aboutOpen && (
+        <div
+          className="confirm-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setAboutOpen(false);
+            }
+          }}
+        >
+          <div
+            className="confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="confirm-modal-title">About MySnapDrop</h3>
+            <p className="confirm-modal-text">
+              MySnapDrop lets you share files over your local network through a
+              simple web interface. Open this app on any device on the same
+              Wi‑Fi, then use the upload area to drop files and the QR button
+              to open the app on another device.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setAboutOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="app-header">
-        <h1>MySnapDrop</h1>
-        <p>Local file sharing over your network.</p>
+        <div className="app-header-row">
+          <div className="app-title">
+            <h1>MySnapDrop</h1>
+            <p>Local file sharing over your network.</p>
+          </div>
+          <div className="app-status">
+            <span className="status-dot" aria-hidden="true"></span>
+            <span className="status-text">Online</span>
+          </div>
+        </div>
       </header>
       <main className="app-main">
         <section className="transfer-area">
@@ -386,7 +427,14 @@ export function App() {
         <QrSection />
         <p className="app-author">
           Author: <span>hungti17</span> -{" "}
-          <a href="mailto:nphung75@gmail.com">nphung75@gmail.com</a>
+          <a href="mailto:nphung75@gmail.com">nphung75@gmail.com</a> ·{" "}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setAboutOpen(true)}
+          >
+            About
+          </button>
         </p>
       </footer>
     </div>

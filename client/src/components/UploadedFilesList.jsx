@@ -34,6 +34,32 @@ export function UploadedFilesList({
               className="uploaded-file-link"
               title={file}
             >
+              <span className="file-type-icon-wrapper" aria-hidden="true">
+                <svg
+                  className="file-type-icon"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M7 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9.828a2 2 0 0 0-.586-1.414l-4.828-4.828A2 2 0 0 0 12.172 3H7Z"
+                    fill="var(--color-surface)"
+                    stroke="var(--color-border-subtle)"
+                    strokeWidth="1.2"
+                  />
+                  <path
+                    d="M14 3.5V7a1 1 0 0 0 1 1h3.5"
+                    stroke="var(--color-border-subtle)"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9 14h6"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
               <span className="file-name">
                 <span className="file-name-main">{truncatedBase}</span>
                 {ext && <span className="file-name-ext">.{ext}</span>}

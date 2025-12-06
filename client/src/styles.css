@@ -5,12 +5,12 @@
 }
 
 :root {
-  --color-bg: #f5f7fb;
+  --color-bg: #f7f7f7;
   --color-surface: #ffffff;
   --color-border-subtle: #e0e3eb;
   --color-border-strong: #ced4da;
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
+  --color-primary: #0891b2;
+  --color-primary-dark: #0e7490;
   --color-danger: #dc2626;
   --color-danger-dark: #b91c1c;
   --color-success: #16a34a;
@@ -31,8 +31,8 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top, #e0edff 0, var(--color-bg) 55%);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #d9f6fb 0, var(--color-bg) 55%);
   color: var(--color-text);
   font-size: 16px;
   -webkit-user-select: none;
@@ -54,12 +54,12 @@ body {
 }
 
 .app-header {
-  text-align: center;
   margin-bottom: 24px;
 }
 
 .app-header h1 {
   margin: 0 0 8px;
+  font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--color-primary);
   letter-spacing: 0.03em;
 }
@@ -68,6 +68,39 @@ body {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.95rem;
+}
+
+.app-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: var(--color-success);
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
+}
+
+.status-text {
+  letter-spacing: 0.03em;
 }
 
 .app-main {
@@ -97,12 +130,15 @@ body {
   cursor: pointer;
   background-color: var(--color-surface);
   border-radius: var(--radius-md);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .drop-zone--dragging {
-  background-color: #e5efff;
+  background-color: #d7f3f9;
   border-color: var(--color-primary-dark);
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.3);
+  transform: translateY(-1px);
 }
 
 .drop-zone-input {
@@ -149,6 +185,7 @@ body {
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
   width: 100%;
   touch-action: manipulation;
+  min-height: 40px;
 }
 
 .btn-sm {
@@ -220,6 +257,20 @@ body {
   margin-bottom: 8px;
   gap: 8px;
   min-width: 0;
+  padding: 6px 8px;
+  background-color: var(--color-surface);
+  border-radius: 6px;
+  border: 1px solid var(--color-border-subtle);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  min-height: 40px;
+}
+
+.uploaded-file-row:hover {
+  background-color: #d7f3f9;
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
 }
 
 .uploaded-file-link {
@@ -229,17 +280,12 @@ body {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  padding: 8px 10px;
-  background-color: var(--color-surface);
-  border-radius: 6px;
-  border: 1px solid var(--color-border-strong);
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  border: none;
   text-decoration: none;
   color: var(--color-text);
-  transition: background-color 0.2s ease;
-}
-
-.uploaded-file-link:hover {
-  background-color: #eef2ff;
 }
 
 .uploaded-file-actions {
@@ -259,6 +305,21 @@ body {
   display: block;
 }
 
+.btn-icon {
+  display: inline-flex;
+  margin-right: 6px;
+}
+
+.icon-upload,
+.icon-clear {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-label {
+  white-space: nowrap;
+}
+
 .file-name {
   display: inline-flex;
   align-items: center;
@@ -276,6 +337,19 @@ body {
 .file-name-ext {
   flex-shrink: 0;
   margin-left: 2px;
+}
+
+.file-type-icon-wrapper {
+  display: inline-flex;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.file-type-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: var(--color-primary);
 }
 
 .progressBar {
@@ -329,6 +403,9 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  transform: scale(0.96);
+  opacity: 0;
+  animation: qr-modal-in 0.18s ease-out forwards;
 }
 
 .qr-modal-title {
@@ -359,6 +436,9 @@ body {
   width: min(360px, 90vw);
   text-align: center;
   border: 1px solid var(--color-border-subtle);
+  transform: scale(0.96);
+  opacity: 0;
+  animation: confirm-modal-in 0.18s ease-out forwards;
 }
 
 .confirm-modal-title {
@@ -431,6 +511,40 @@ body {
   color: #ffffff;
   box-shadow: var(--shadow-soft);
   cursor: pointer;
+  animation: toast-in 0.18s ease-out;
+}
+
+@keyframes qr-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes confirm-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .toast--success {
