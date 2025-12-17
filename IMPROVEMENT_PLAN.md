@@ -1,113 +1,133 @@
-﻿# MySnapDrop – Creative Minimalist UI/UX Improvement Plan
+# MySnapDrop – UI/UX Improvement Plan
 
-This plan translates the current “creative minimalist” design direction into concrete, implementable tasks for the React app.
+This document tracks visual and UX work for the React client. The focus is a clean, minimalist experience that:
 
-## 1. Structure & Layout (Card-Deck)
+- Feels lightweight and touch-friendly on phones.
+- Feels more like a file explorer on tablets and desktop screens, especially when managing many files.
 
-- [ ] Refine header structure:
-  - [ ] Left-align app name as a clear brand/title.
-  - [ ] Add a small “Online” status indicator (accent-colored dot + label) aligned to the right.
-- [ ] Make main sections feel like a stacked card deck:
-  - [ ] Ensure transfer area and files area have consistent card styles (padding, radius, shadow, border).
-  - [ ] On mobile, stack cards vertically with clear separation and comfortable margins.
-  - [ ] On larger screens, keep the current 2-column layout but visually balance card widths and spacing.
-- [ ] Turn uploaded files into “micro-cards/chips”:
-  - [ ] Reduce vertical spacing and tighten each row’s height.
-  - [ ] Apply a subtle shadow or border emphasis to each file row for elevation.
-  - [ ] Make the list scroll smoothly when many files are present.
+---
 
-## 2. Typography (Clean + Expressive)
+## 1. High-Level Goals
 
-- [ ] Introduce two font roles:
-  - [ ] Display font for headers/branding (e.g., Poppins/Montserrat bold).
-  - [ ] Body font for everything else (e.g., Inter/Roboto).
-- [ ] Apply typography hierarchy:
-  - [ ] Use display font + slightly increased letter-spacing for the app title and section headers.
-  - [ ] Use body font with consistent sizes for file names, hints, and button labels.
-  - [ ] Ensure good contrast and readability for small text on mobile.
+- Keep the phone experience almost exactly as it is today: simple, card-based, and optimized for quick sharing.
+- On tablets and desktops, evolve the files area into a layout that feels closer to a file explorer (denser rows, columns, bulk actions, keyboard/mouse friendly).
+- Reuse the existing backend API (upload, list, download, delete, clear-all) as much as possible.
+- Avoid surprising behavior when resizing the window or switching devices.
 
-## 3. Color Palette (Minimal + Accent)
+---
 
-- [ ] Define a unified color system:
-  - [ ] Background: soft off-white / very light gray (already close, finalize exact value).
-  - [ ] Accent: a single strong accent color (e.g., teal or violet) to apply consistently.
-  - [ ] Text: near-black for primary text and medium gray for secondary text.
-- [ ] Normalize existing colors:
-  - [ ] Update primary buttons, links, and drag-over state to use the accent color.
-  - [ ] Harmonize error/success colors with the accent and neutrals (no random reds/blues).
-  - [ ] Ensure the QR modal, toasts, and dialogs follow the same palette.
+## 2. Current State (Already Implemented)
 
-## 4. Iconography & File Representation
+These foundations are already in place and should be preserved:
 
-- [ ] Standardize icon style:
-  - [ ] Keep using outline/duotone-style icons (e.g., the current trash icon).
-  - [ ] Add icons where useful (upload, clear all, maybe info/help) without clutter.
-- [ ] Add file-type indicators:
-  - [ ] Map common extensions (`.jpg`, `.png`, `.pdf`, `.zip`, `.mp4`, etc.) to small file-type icons.
-  - [ ] Show a tiny icon next to each filename in the uploaded files list.
-  - [ ] Reserve a small accent-colored detail on these icons for a consistent visual language.
+- **Layout & structure**
+  - Card-style transfer area and files area with consistent padding, radius, and shadow.
+  - Header with left-aligned app title and a live “online/offline” indicator.
+  - Responsive layout that stacks on narrow screens and shows two columns on wider screens.
+- **Typography & colors**
+  - Display font for branding/headers, body font for content.
+  - Centralized color tokens (background, accent, danger, success, muted text) and a cohesive light theme.
+- **Micro-interactions**
+  - Drag-over feedback on the drop zone.
+  - Button hover/active states.
+  - Toast notifications for success/error/info.
+  - Animated QR and confirmation modals.
+- **File representation**
+  - File-type icons for common extensions.
+  - File size display and a cleaned-up file list.
+- **Platform features**
+  - PWA manifest + service worker shell caching.
+  - Dark mode with a theme toggle.
+  - Electron desktop wrapper and packaging.
+  - Simple “About” dialog.
 
-## 5. Micro-Interactions & Feedback
+The rest of this plan focuses on upcoming work.
 
-- [ ] Enhance hover/focus states:
-  - [ ] Files list: on hover (desktop), slightly increase shadow and change background color subtly.
-  - [ ] Buttons: add a consistent hover/active treatment (scale/brightness/shadow) that feels responsive but not noisy.
-- [ ] Drag & drop feedback:
-  - [ ] When dragging files over the drop zone, emphasize the border and background using the accent color (glow effect).
-  - [ ] Keep drag-over state clearly visible even on small screens.
-- [ ] Dialogs and modals:
-  - [ ] Add a short fade/scale animation for opening/closing the QR modal.
-  - [ ] Add similar animation for the “Clear all uploaded files” confirmation dialog.
+---
 
-## 6. Mobile-First Polish
+## 3. Desktop/Tablet “File Explorer” Layout
 
-- [ ] Verify and refine mobile behavior:
-  - [ ] Ensure the drop zone, buttons, and file chips look balanced on narrow screens.
-  - [ ] Confirm that long filenames never cause horizontal scrolling (use truncation/wrap where needed).
-  - [ ] Ensure toasts and dialogs fit comfortably within the viewport (max-width rules already applied).
-- [ ] Optimize touch targets:
-  - [ ] Make all tap areas (buttons, icons, links) large enough and spaced sufficiently.
-  - [ ] Keep key actions reachable without awkward scrolling or zoom.
+**Goal:** When the app runs on a tablet or desktop-sized screen, show an explorer-style files view suitable for managing many items. On phones, keep the current minimal card layout.
 
-## 7. Optional Future Enhancements
+### 3.1 UX Behavior
 
-These are not required now but align with the same minimalist direction:
+- **Phones (small screens)**
+  - Keep existing layout and interactions.
+  - Optimize for quick single-file or few-file transfers.
+- **Tablets / desktops (medium+ screens)**
+  - The transfer card stays largely the same.
+  - The files area becomes an “explorer”:
+    - Denser rows in a list/table.
+    - Columns: Name, Size, Modified (when available).
+    - Multi-select and bulk actions (delete / clear).
+    - Sorting by name, size, and modified time.
+    - Optional quick filters (e.g., by type: images, documents, archives).
 
-- [ ] PWA support (manifest, service worker, offline shell).
-- [ ] Dark mode with the same accent color and card structure.
-- [ ] Additional metadata in file list (size, upload time) displayed subtly below the filename.
-- [ ] Simple "About" or "Help" dialog explaining how to use the app and QR feature.
+### 3.2 Technical Approach
 
-We can work through these sections one by one. If you want, we can prioritize (e.g., start with color + typography, then micro-interactions, then icons) before implementing. 
+- **Layout mode detection**
+  - Use a combination of viewport width and pointer type:
+    - Example: treat `min-width: 768px` with `pointer: fine` as “explorer-capable”.
+  - Implement a small React hook (e.g., `useLayoutMode`) that returns `"phone"` or `"explorer"`.
+  - Optionally expose a manual override in settings (e.g., “Use compact explorer layout on this device”).
 
-## 8. Electron Desktop Packaging (New)
+- **Component structure**
+  - `App.jsx`
+    - Derive `layoutMode` via the hook.
+    - Pass `layoutMode` down to the files area and any components that need it.
+  - `UploadedFilesList.jsx`
+    - Accept a `variant` or `layoutMode` prop.
+    - Render the current stacked/card list for `phone`.
+    - Render an explorer variant for `explorer`:
+      - Toolbar with sort dropdown/toggles and “Delete selected” / “Clear all”.
+      - List/table body with columns and selection checkboxes.
+  - **State & selection**
+    - Track a set of `selectedFileNames` for the explorer layout.
+    - Reuse existing delete / clear-all logic, but allow bulk delete using the selection.
 
-Wrap the existing server + React frontend into a cross-platform desktop app.
+- **Data and API usage**
+  - Rely on `/files/meta` for name, size, and `mtimeMs` where available.
+  - When the server only supports `/files`, fall back to name-only but keep the explorer layout (with missing columns handled gracefully).
+  - No backend changes in the first phase; treat everything as a flat root folder.
 
-- [ ] Decide Electron architecture:
-  - [ ] Use a root-level `electron-main` entry (e.g., `electron/main.js`) that starts the Express server and opens a `BrowserWindow`.
-  - [ ] For development, point the window at the Vite dev server (`http://localhost:5173`).
-  - [ ] For production, point the window at the built app served by Express (or a local `file://` URL).
-- [ ] Set up Electron dependencies and scripts:
-  - [ ] Add Electron to the project (either root or a dedicated `desktop/` folder).
-  - [ ] Add npm scripts for:
-    - [ ] `electron:dev` – start server, start Vite, then launch Electron.
-    - [ ] `electron:build` – build client, prepare server, package Electron app.
-- [ ] Integrate backend server with Electron:
-  - [ ] Ensure the Express server from `server/index.js` can be required/started from the Electron main process.
-  - [ ] Handle port selection (default 3000) and ensure only one server instance starts.
-  - [ ] Gracefully shut down the server when the Electron app quits.
-- [ ] Wire up the frontend inside Electron:
-  - [ ] In dev: `BrowserWindow.loadURL("http://localhost:5173")` (using the proxy to the Express API).
-  - [ ] In production: `BrowserWindow.loadURL("http://localhost:3000")` or `loadFile` for the built React bundle, depending on the chosen architecture.
-  - [ ] Confirm file upload/download paths work correctly in the Electron context (local filesystem vs app folder).
-- [ ] Add basic Electron app polish:
-  - [ ] Use `mysnapdropico.png` as the window/taskbar icon where supported.
-  - [ ] Set a sensible app name and about metadata.
-  - [ ] Disable default menu (or keep a minimal one) to preserve the clean look.
-- [ ] Packaging and distribution:
-  - [ ] Choose a packaging tool (e.g., `electron-builder` or `electron-forge`) and configure:
-    - [ ] App ID, product name, icons.
-    - [ ] Output folders for Windows/macOS/Linux (as needed).
-  - [ ] Ensure the packaged app bundles the server, static frontend, and Electron main process together.
-  - [ ] Document how to build and run the desktop app in README or a short `DESKTOP.md`.
+- **Styling**
+  - Add explorer-specific classes in `styles.css` (e.g., `.files-explorer`, `.files-table`, `.files-row`).
+  - Under a tablet/desktop media query, switch the files section to the explorer variant.
+  - Ensure the layout collapses cleanly back to the phone variant when the viewport shrinks.
+
+### 3.3 Incremental Implementation Steps
+
+- [ ] Implement `useLayoutMode` hook (viewport + pointer detection, with resize listener).
+- [ ] Thread `layoutMode` into `App.jsx` and `UploadedFilesList.jsx`.
+- [ ] Add a basic explorer variant:
+  - [ ] Toolbar with sort options and a simple “Delete selected” button.
+  - [ ] Table/list layout with columns and checkboxes.
+- [ ] Wire up selection + bulk actions using existing delete / clear-all endpoints.
+- [ ] Add explorer-specific styles (denser rows, column alignment, hover/focus states).
+- [ ] Test behavior across:
+  - [ ] Phone portrait (card layout only).
+  - [ ] Small tablet landscape.
+- [ ] Laptop/desktop with resize and zoom.
+- [ ] Consider adding a user-visible “View” toggle (Card / Explorer) if automatic detection ever feels wrong.
+
+### 3.4 Future (Optional) Folder/Hierarchy Support
+
+If we later want real folder management instead of a flat list:
+
+- [ ] Extend the server to understand paths (e.g., `/upload?path=Photos/2025/`).
+- [ ] Adjust list endpoints to return `type: "file" | "folder"` and nested paths.
+- [ ] Add a sidebar tree or breadcrumb navigation in the explorer view.
+- [ ] Support create/rename/move operations for folders and files.
+- [ ] Carefully migrate existing uploads so they still appear in the new structure.
+
+---
+
+## 4. Smaller UX Polish Items
+
+These are lower priority and can be tackled when convenient:
+
+- [ ] Show relative timestamps (“5 minutes ago”) using `mtimeMs` from `/files/meta`.
+- [ ] Improve long filename handling in the explorer view (tooltips, inline rename prep).
+- [ ] Minor copy tweaks for toasts, empty states, and offline messaging.
+- [ ] Optional: add a lightweight settings panel (theme toggle, view mode preferences).
+
