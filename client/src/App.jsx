@@ -3,6 +3,7 @@ import { DropZone } from "./components/DropZone";
 import { FileControls } from "./components/FileControls";
 import { UploadedFilesList } from "./components/UploadedFilesList";
 import { QrSection } from "./components/QrSection";
+import { useLayoutMode } from "./useLayoutMode";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
@@ -17,6 +18,7 @@ export function App() {
   const [theme, setTheme] = useState("light");
   const [serverOnline, setServerOnline] = useState(true);
   const [hasShownOfflineToast, setHasShownOfflineToast] = useState(false);
+  const layoutMode = useLayoutMode();
 
   const canUpload = selectedFiles.length > 0 && serverOnline;
 
@@ -313,6 +315,52 @@ export function App() {
     }
   };
 
+  const handleDeleteMany = async (filenames) => {
+    if (!Array.isArray(filenames) || filenames.length === 0) {
+      return;
+    }
+
+    if (!serverOnline) {
+      showNotification(
+        "error",
+        "Cannot delete files while the server is offline."
+      );
+      return;
+    }
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const filename of filenames) {
+      if (!filename) continue;
+      try {
+        const response = await fetch(`/files/${encodeURIComponent(filename)}`, {
+          method: "DELETE"
+        });
+        if (response.ok) {
+          successCount += 1;
+        } else {
+          failureCount += 1;
+        }
+      } catch {
+        failureCount += 1;
+      }
+    }
+
+    if (successCount > 0 && failureCount === 0) {
+      showNotification("success", `Deleted ${successCount} file(s).`);
+    } else if (successCount > 0 && failureCount > 0) {
+      showNotification(
+        "warning",
+        `Deleted ${successCount} file(s), but ${failureCount} failed.`
+      );
+    } else {
+      showNotification("error", "Failed to delete selected files.");
+    }
+
+    fetchFiles();
+  };
+
   const handleClearAllUploaded = () => {
     if (!uploadedFiles || uploadedFiles.length === 0) {
       showNotification("info", "No uploaded files to clear.");
@@ -412,6 +460,8 @@ export function App() {
       window.mysnapdropDesktop.clearCacheAndReload();
     }
   };
+
+  const isExplorerLayout = layoutMode === "explorer";
 
   return (
     <div className="app-root" onDoubleClick={handleRootDoubleClick}>
@@ -525,36 +575,88 @@ export function App() {
           </div>
         </div>
       </header>
-      <main className="app-main">
-        <section className="transfer-area">
-          <DropZone
-            selectedFiles={selectedFiles}
-            onFilesSelected={handleFilesSelected}
-          />
-          <FileControls
-            canUpload={canUpload}
-            onUpload={handleUpload}
-            onClear={handleClearSelection}
-          />
-          {selectionSummary && (
-            <p className="selection-summary">{selectionSummary}</p>
-          )}
-          {!serverOnline && (
-            <p className="server-offline-hint">
-              Server is offline. Start the backend and reload this page before
-              uploading or managing files.
-            </p>
-          )}
-        </section>
-        <section className="files-area">
-          <UploadedFilesList
-            files={uploadedFiles}
-            uploadProgress={uploadProgress}
-            uploadingFiles={uploadingFiles}
-            onDelete={handleDeleteFile}
-            onClearAll={handleClearAllUploaded}
-          />
-        </section>
+      <main
+        className={`app-main${
+          isExplorerLayout ? " app-main--explorer" : ""
+        }`}
+      >
+        {isExplorerLayout ? (
+          <>
+            <section className="transfer-area transfer-area--explorer">
+              <div className="explorer-command-bar">
+                <FileControls
+                  canUpload={canUpload}
+                  onUpload={handleUpload}
+                  onClear={handleClearSelection}
+                />
+                <div className="explorer-command-meta">
+                  {selectionSummary && (
+                    <p className="selection-summary selection-summary--explorer">
+                      {selectionSummary}
+                    </p>
+                  )}
+                  {!serverOnline && (
+                    <p className="server-offline-hint server-offline-hint--explorer">
+                      Server is offline. Start the backend and reload this page
+                      before uploading or managing files.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="explorer-drop-zone-wrapper">
+                <DropZone
+                  selectedFiles={selectedFiles}
+                  onFilesSelected={handleFilesSelected}
+                />
+              </div>
+            </section>
+            <section className="files-area files-area--explorer">
+              <UploadedFilesList
+                files={uploadedFiles}
+                layoutMode={layoutMode}
+                uploadProgress={uploadProgress}
+                uploadingFiles={uploadingFiles}
+                onDelete={handleDeleteFile}
+                onDeleteMany={handleDeleteMany}
+                onClearAll={handleClearAllUploaded}
+              />
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="transfer-area">
+              <DropZone
+                selectedFiles={selectedFiles}
+                onFilesSelected={handleFilesSelected}
+              />
+              <FileControls
+                canUpload={canUpload}
+                onUpload={handleUpload}
+                onClear={handleClearSelection}
+              />
+              {selectionSummary && (
+                <p className="selection-summary">{selectionSummary}</p>
+              )}
+              {!serverOnline && (
+                <p className="server-offline-hint">
+                  Server is offline. Start the backend and reload this page
+                  before uploading or managing files.
+                </p>
+              )}
+            </section>
+            <section className="files-area">
+              <UploadedFilesList
+                files={uploadedFiles}
+                layoutMode={layoutMode}
+                uploadProgress={uploadProgress}
+                uploadingFiles={uploadingFiles}
+                onDelete={handleDeleteFile}
+                onDeleteMany={handleDeleteMany}
+                onClearAll={handleClearAllUploaded}
+              />
+            </section>
+          </>
+        )}
       </main>
       <footer className="app-footer">
         <QrSection />
