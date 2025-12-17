@@ -116,6 +116,24 @@ export function UploadedFilesList({
     const list = [...viewFiles];
     const direction = sortDirection === "asc" ? 1 : -1;
 
+    const typeOrder = (kind) => {
+      switch (kind) {
+        case "image":
+          return 2;
+        case "video":
+          return 3;
+        case "audio":
+          return 4;
+        case "doc":
+          return 5;
+        case "archive":
+          return 6;
+        case "file":
+        default:
+          return 7;
+      }
+    };
+
     list.sort((a, b) => {
       const nameA = a.fullName || "";
       const nameB = b.fullName || "";
@@ -128,9 +146,20 @@ export function UploadedFilesList({
       }
 
       if (sortField === "size") {
-        const diff = (a.size || 0) - (b.size || 0);
-        if (diff !== 0) {
-          return direction * diff;
+        const diffSize = (a.size || 0) - (b.size || 0);
+        if (diffSize !== 0) {
+          return direction * diffSize;
+        }
+        const fallback = nameA.localeCompare(nameB, undefined, {
+          sensitivity: "base"
+        });
+        return direction * fallback;
+      }
+
+      if (sortField === "type") {
+        const diffType = typeOrder(a.kind) - typeOrder(b.kind);
+        if (diffType !== 0) {
+          return direction * diffType;
         }
         const fallback = nameA.localeCompare(nameB, undefined, {
           sensitivity: "base"
@@ -330,6 +359,7 @@ export function UploadedFilesList({
                 <option value="mtimeMs">Modified</option>
                 <option value="name">Name</option>
                 <option value="size">Size</option>
+                <option value="type">Type</option>
               </select>
             </label>
             <button
